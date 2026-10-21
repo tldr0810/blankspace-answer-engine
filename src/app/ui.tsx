@@ -184,3 +184,99 @@ export function Picker(props: {
     </div>
   );
 }
+
+/** A site's source check, next to its name: a cited page opened and on topic, or every check refused. */
+export function SourceMark({ verified }: { verified?: boolean | null }) {
+  if (verified === true) {
+    return (
+      <span className="src-mark ok" role="img" aria-label="Source checked: a cited page loads and covers the question">
+        <Icon name="check" size={11} />
+      </span>
+    );
+  }
+  if (verified === false) return <span className="src-mark unchecked" role="img" aria-label="Unchecked: the site blocks automated checks" />;
+  return null;
+}
+
+/* ───────── skeletons: the page's shape while its data loads ───────── */
+
+function SkLines(props: { widths: string[] }) {
+  return (
+    <div className="sk-stack">
+      {props.widths.map((w, i) => (
+        <span key={i} className="sk" style={{ width: w }} />
+      ))}
+    </div>
+  );
+}
+
+export function SkeletonHeader() {
+  return (
+    <div className="sk-head" aria-hidden>
+      <span className="sk" style={{ width: 110, height: 10 }} />
+      <span className="sk" style={{ width: 'min(520px, 80%)', height: 34 }} />
+      <span className="sk" style={{ width: 'min(640px, 95%)' }} />
+      <span className="sk" style={{ width: 'min(420px, 70%)' }} />
+    </div>
+  );
+}
+
+export function SkeletonBoard(props: { rows?: number }) {
+  return (
+    <div className="sk-card sk-list" aria-hidden>
+      {Array.from({ length: props.rows ?? 8 }, (_, i) => (
+        <div key={i} className="sk-row" style={{ '--i': i } as CSSProperties}>
+          <span className="sk" style={{ width: 18 }} />
+          <span className="sk" style={{ width: `${150 - ((i * 23) % 60)}px` }} />
+          <span className="sk round" style={{ flex: 1, height: 14, maxWidth: `${88 - i * 7}%` }} />
+          <span className="sk" style={{ width: 34 }} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function SkeletonCards(props: { count?: number }) {
+  return (
+    <div className="sk-grid2" aria-hidden>
+      {Array.from({ length: props.count ?? 2 }, (_, i) => (
+        <div key={i} className="sk-card">
+          <span className="sk" style={{ width: '45%', height: 18 }} />
+          <SkLines widths={['92%', '84%', '70%', '88%', '60%']} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** A whole page's placeholder, shaped like the page that is coming. */
+export function PageSkeleton(props: { kind?: 'board' | 'run' | 'report' | 'leads' | 'page'; label?: string }) {
+  const kind = props.kind ?? 'page';
+  return (
+    <div className="stack sk-page" role="status" aria-label={props.label ?? 'Loading'}>
+      <SkeletonHeader />
+      {kind === 'run' && (
+        <div className="sk-card sk-steps" aria-hidden>
+          {Array.from({ length: 6 }, (_, i) => (
+            <span key={i} className="sk-row">
+              <span className="sk circle" style={{ width: 24, height: 24 }} />
+              <span className="sk" style={{ width: 90 }} />
+            </span>
+          ))}
+        </div>
+      )}
+      {kind === 'report' && (
+        <div className="sk-kpis" aria-hidden>
+          {Array.from({ length: 4 }, (_, i) => (
+            <div key={i} className="sk-card">
+              <span className="sk" style={{ width: '60%', height: 10 }} />
+              <span className="sk" style={{ width: '40%', height: 30 }} />
+            </div>
+          ))}
+        </div>
+      )}
+      {(kind === 'board' || kind === 'leads') && <SkeletonBoard rows={kind === 'leads' ? 6 : 9} />}
+      {(kind === 'run' || kind === 'report' || kind === 'page') && <SkeletonCards />}
+    </div>
+  );
+}

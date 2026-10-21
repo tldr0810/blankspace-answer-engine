@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { ENGINE_LABEL, ROLE_LABEL, STEPS, STEP_LABEL, VERTICAL_LABEL, type Role, type RunDetail } from '../../shared/engine';
 import { api } from '../api';
-import { ago, EngineBar, EngineTag, Icon, VerdictTag } from '../ui';
+import { ago, EngineBar, EngineTag, Icon, PageSkeleton, SourceMark, VerdictTag } from '../ui';
 import { runTitle } from './Check';
 
 export default function RunView(props: { runId: string; admin: boolean; onChange: () => Promise<void> }) {
@@ -35,7 +35,7 @@ export default function RunView(props: { runId: string; admin: boolean; onChange
   }, [live]);
 
   if (error) return <div className="notice error">{error}</div>;
-  if (!detail) return <p className="muted">Loading…</p>;
+  if (!detail) return <PageSkeleton kind="run" label="Loading the run" />;
   const { run } = detail;
   const steps = run.kind === 'question' ? STEPS.slice(0, 3) : STEPS;
   const at = run.step === 'done' ? steps.length : steps.indexOf(run.step as (typeof STEPS)[number]);
@@ -113,7 +113,10 @@ export default function RunView(props: { runId: string; admin: boolean; onChange
                     className={`${r.domain === run.domain ? 'you' : ''} ${r.publisher === false ? 'off' : ''}`}
                     style={{ '--i': i } as CSSProperties}
                   >
-                    <span className="d">{r.domain}</span>
+                    <span className="d">
+                      {r.domain}
+                      <SourceMark verified={r.verified} />
+                    </span>
                     <EngineBar byEngine={r.byEngine} engines={run.engines} max={max} />
                     <span className="n">{r.answers}</span>
                   </li>

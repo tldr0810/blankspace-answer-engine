@@ -181,7 +181,30 @@ export interface BoardRow {
   citations: number;
   byEngine: Partial<Record<Engine, number>>;
   publisher: boolean | null;
+  /** true: a cited page opened and is on topic. false: the site blocked every check. null: not checked yet. */
+  verified?: boolean | null;
 }
+
+/**
+ * Code's check of one cited page. ok: it loads and covers the question. off_topic and dead
+ * pages are dropped from every count. blocked: the site refused our fetch, so it stays in,
+ * marked unchecked.
+ */
+export type PageVerdict = 'ok' | 'off_topic' | 'dead' | 'blocked';
+export const DROPPED_VERDICTS: readonly PageVerdict[] = ['off_topic', 'dead'];
+
+/**
+ * Automatic vertical refreshes. A Manyfold automation calls POST /api/engine/autopilot on its
+ * schedule; the app starts the next vertical in rotation, at most once per AUTOPILOT_MIN_GAP_HOURS.
+ */
+export interface Autopilot {
+  enabled: boolean;
+  /** Index into VERTICALS of the next vertical to refresh. */
+  next: number;
+  lastAt: string | null;
+  lastRunId: string | null;
+}
+export const AUTOPILOT_MIN_GAP_HOURS = 2;
 
 export type Verdict = 'verified' | 'not_found' | 'fetch_blocked' | 'no_person' | 'pending';
 
@@ -229,6 +252,8 @@ export interface EngineState {
   runs: Run[];
   boards: VerticalBoard[];
   limits: { runsToday: number; dailyLimit: number; active: number };
+  autopilot: Autopilot & { nextVertical: Vertical };
+  sources: { ok: number; dropped: number; blocked: number };
 }
 
 export interface RunDetail {
@@ -252,6 +277,7 @@ export interface SiteReport {
   row: BoardRow | null;
   board: BoardRow[];
   pages: string[];
+  pageVerdicts: Record<string, PageVerdict>;
   queries: string[];
   facts: SiteFacts | null;
   lead: Lead | null;

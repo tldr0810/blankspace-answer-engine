@@ -9,6 +9,8 @@
  *   GET   /runs/:id/report/:domain       a site's AI Answer Share report
  *   PATCH /leads/:id                     { email?, status? } edit or approve a draft
  *   PUT   /roles                         { role, agentId|null } assign an agent to a role
+ *   POST  /autopilot                     start the next vertical in rotation if one is due (Manyfold automation)
+ *   PUT   /autopilot                     { enabled } pause or resume it
  */
 
 import { Hono } from 'hono';
@@ -24,6 +26,7 @@ import {
   type VerticalBoard,
 } from '../../shared/engine';
 import { HttpError, type Env } from '../types';
+import { autopilotTick, loadAutopilot, saveAutopilot } from './autopilot';
 import { normalizeDomain } from './logic';
 import { newRun } from './runner';
 import { ensureSeed } from './seed';
@@ -45,6 +48,7 @@ import {
   runsSince,
   setRole,
   siteFacts,
+  sourceTotals,
 } from './store';
 import { tickerFor } from './ticker';
 
@@ -73,13 +77,15 @@ export function engineRoutes(adminOk: AdminCheck) {
   const dayStart = () => new Date(Date.now() - 24 * 3600_000).toISOString();
 
   app.get('/state', async (c) => {
-    const [roles, engines, runs, latest, active, today] = await Promise.all([
+    const [roles, engines, runs, latest, active, today, autopilot, sources] = await Promise.all([
       roleMap(c.env),
       readyEngines(c.env),
       listRuns(c.env, 40),
       latestVerticalRuns(c.env),
       activeRuns(c.env),
       runsSince(c.env, dayStart()),
+      loadAutopilot(c.env),
+      sourceTotals(c.env),
     ]);
     const boards: VerticalBoard[] = [];
     for (const vertical of VERTICALS) {
@@ -104,6 +110,8 @@ export function engineRoutes(adminOk: AdminCheck) {
       runs,
       boards,
       limits: { runsToday: today, dailyLimit: dailyLimit(c.env), active: active.length },
+      autopilot: { ...autopilot, nextVertical: VERTICALS[autopilot.next % VERTICALS.length] },
+      sources,
     };
     return c.json(state);
   });
@@ -170,7 +178,7 @@ export function engineRoutes(adminOk: AdminCheck) {
     const run = await getRun(c.env, c.req.param('id'));
     const domain = normalizeDomain(c.req.param('domain'));
     if (!run || !domain || !run.vertical) throw new HttpError(404, 'not_found', 'No such report.');
-    const { rows, total } = await boardFor(c.env, run.id);
+    const { rows, total, verdicts } = await boardFor(c.env, run.id);
     const index = rows.findIndex((r) => r.domain === domain);
     const row = index >= 0 ? rows[index] : null;
     const [facts, leads] = await Promise.all([siteFacts(c.env, [domain]), runLeads(c.env, run.id)]);
@@ -183,9 +191,10 @@ export function engineRoutes(adminOk: AdminCheck) {
       total,
       engines: run.engines,
       rank: row ? rows.filter((r) => r.publisher !== false).findIndex((r) => r.domain === domain) + 1 || null : null,
-      row: row ? { domain: row.domain, answers: row.answers, citations: row.citations, byEngine: row.byEngine, publisher: row.publisher } : null,
+      row: row ? { domain: row.domain, answers: row.answers, citations: row.citations, byEngine: row.byEngine, publisher: row.publisher, verified: row.verified } : null,
       board: rows.filter((r) => r.publisher !== false).slice(0, 10).map(({ pages: _p, queries: _q, ...r }) => r),
       pages: row?.pages ?? [],
+      pageVerdicts: Object.fromEntries((row?.pages ?? []).filter((u) => verdicts.has(u)).map((u) => [u, verdicts.get(u)!])),
       queries: row?.queries ?? [],
       facts: facts.get(domain) ?? null,
       lead: lead ? { ...lead, contactName: lead.verdict === 'verified' ? lead.contactName : null, email: null } : null,
@@ -214,6 +223,22 @@ export function engineRoutes(adminOk: AdminCheck) {
     if (!(ROLES as readonly string[]).includes(role)) throw new HttpError(400, 'bad_request', 'Unknown role.');
     await setRole(c.env, role, typeof body?.agentId === 'string' && body.agentId ? body.agentId : null);
     return c.json({ roles: await roleMap(c.env) });
+  });
+
+  // Called by the Manyfold automation. Open to anyone: the gap and the rotation are decided
+  // here, so calling it more often than the schedule starts nothing extra.
+  app.post('/autopilot', async (c) => {
+    const outcome = await autopilotTick(c.env);
+    return c.json(outcome.started ? { started: true, runId: outcome.run.id, vertical: outcome.run.vertical } : outcome);
+  });
+
+  app.put('/autopilot', async (c) => {
+    requireAdmin(c);
+    const body = (await c.req.json().catch(() => null)) as { enabled?: unknown } | null;
+    if (typeof body?.enabled !== 'boolean') throw new HttpError(400, 'bad_request', 'enabled must be true or false.');
+    const state = await loadAutopilot(c.env);
+    await saveAutopilot(c.env, { ...state, enabled: body.enabled });
+    return c.json({ ok: true });
   });
 
   return app;

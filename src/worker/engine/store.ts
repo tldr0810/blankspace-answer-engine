@@ -13,12 +13,13 @@ import {
   type Role,
   type Run,
   type RunEvent,
+  type PageVerdict,
   type SiteFacts,
   type Vertical,
 } from '../../shared/engine';
 import { getSetting, now, setSetting } from '../db';
 import type { Env } from '../types';
-import { isPublisher, listedNonPublisher, tally, type Answer } from './logic';
+import { domainOf, isPublisher, listedNonPublisher, siteVerified, tally, withoutDropped, type Answer } from './logic';
 
 const json = <T>(value: string | null | undefined, fallback: T): T => {
   if (!value) return fallback;
@@ -108,7 +109,7 @@ export async function activeRuns(env: Env): Promise<Run[]> {
 }
 
 export async function runsSince(env: Env, iso: string): Promise<number> {
-  const row = await env.DB.prepare('SELECT COUNT(*) AS n FROM runs WHERE seed = 0 AND started_at >= ?').bind(iso).first<{ n: number }>();
+  const row = await env.DB.prepare("SELECT COUNT(*) AS n FROM runs WHERE seed = 0 AND kind != 'vertical' AND started_at >= ?").bind(iso).first<{ n: number }>();
   return row?.n ?? 0;
 }
 
@@ -222,16 +223,77 @@ export async function saveFacts(env: Env, facts: SiteFacts): Promise<void> {
     .run();
 }
 
-/** A run's board: tallied answers, with the publisher flag from whatever code has checked. */
-export async function boardFor(env: Env, runId: string): Promise<{ rows: (BoardRow & { pages: string[]; queries: string[] })[]; total: number; questions: number }> {
+/**
+ * A run's board: tallied answers, with the publisher flag from whatever code has checked.
+ * Cited pages code found dead or off topic are left out before counting.
+ */
+export async function boardFor(
+  env: Env,
+  runId: string,
+): Promise<{ rows: (BoardRow & { pages: string[]; queries: string[] })[]; total: number; questions: number; verdicts: Map<string, PageVerdict> }> {
   const answers = await runAnswers(env, runId);
-  const rows = tally(answers);
+  const verdicts = await pageVerdicts(env, [...new Set(answers.flatMap((a) => a.cited))]);
+  const rows = tally(withoutDropped(answers, verdicts));
   const facts = await siteFacts(env, rows.slice(0, 40).map((r) => r.domain));
   for (const row of rows) {
     const f = facts.get(row.domain);
     row.publisher = f ? isPublisher(row.domain, f) : listedNonPublisher(row.domain) ? false : null;
+    row.verified = siteVerified(row.pages, verdicts);
   }
-  return { rows, total: answers.length, questions: new Set(answers.map((a) => a.query)).size };
+  return { rows, total: answers.length, questions: new Set(answers.map((a) => a.query)).size, verdicts };
+}
+
+/* ───────── cited-page checks ───────── */
+
+export async function pageVerdicts(env: Env, urls: string[]): Promise<Map<string, PageVerdict>> {
+  const out = new Map<string, PageVerdict>();
+  for (let i = 0; i < urls.length; i += 90) {
+    const chunk = urls.slice(i, i + 90);
+    const { results } = await env.DB.prepare(`SELECT url, verdict FROM page_checks WHERE url IN (${chunk.map(() => '?').join(', ')})`)
+      .bind(...chunk)
+      .all<{ url: string; verdict: PageVerdict }>();
+    for (const row of results ?? []) out.set(row.url, row.verdict);
+  }
+  return out;
+}
+
+export async function savePageCheck(env: Env, check: { url: string; status: number | null; verdict: PageVerdict; note: string }): Promise<void> {
+  await env.DB.prepare(
+    `INSERT INTO page_checks (url, domain, status, verdict, note, checked_at) VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT (url) DO UPDATE SET status = excluded.status, verdict = excluded.verdict, note = excluded.note, checked_at = excluded.checked_at`,
+  )
+    .bind(check.url, domainOf(check.url), check.status, check.verdict, check.note, now())
+    .run();
+}
+
+/**
+ * Cited pages that were never checked or were last checked before `staleBefore`, with the
+ * questions each was cited for. `runId` narrows it to one run.
+ */
+export async function pagesToCheck(env: Env, options: { runId?: string; staleBefore: string; limit: number }): Promise<{ url: string; queries: string[] }[]> {
+  const { results } = await env.DB.prepare(
+    `SELECT j.value AS url, a.query AS query
+       FROM answers a, json_each(a.cited) j
+       LEFT JOIN page_checks p ON p.url = j.value
+      WHERE (p.url IS NULL OR p.checked_at < ?) ${options.runId ? 'AND a.run_id = ?' : ''}
+      ORDER BY p.checked_at IS NOT NULL, a.id DESC
+      LIMIT 400`,
+  )
+    .bind(...(options.runId ? [options.staleBefore, options.runId] : [options.staleBefore]))
+    .all<{ url: string; query: string }>();
+  const byUrl = new Map<string, string[]>();
+  for (const row of results ?? []) {
+    const queries = byUrl.get(row.url) ?? [];
+    if (!queries.includes(row.query)) queries.push(row.query);
+    byUrl.set(row.url, queries);
+  }
+  return [...byUrl.entries()].slice(0, options.limit).map(([url, queries]) => ({ url, queries }));
+}
+
+export async function sourceTotals(env: Env): Promise<{ ok: number; dropped: number; blocked: number }> {
+  const { results } = await env.DB.prepare('SELECT verdict, COUNT(*) AS n FROM page_checks GROUP BY verdict').all<{ verdict: PageVerdict; n: number }>();
+  const count = (v: PageVerdict) => results?.find((r) => r.verdict === v)?.n ?? 0;
+  return { ok: count('ok'), dropped: count('dead') + count('off_topic'), blocked: count('blocked') };
 }
 
 /** The latest finished vertical run per vertical: the leaderboard's source. */

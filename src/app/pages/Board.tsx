@@ -3,7 +3,7 @@
 import { useState, type CSSProperties } from 'react';
 import { VERTICALS, VERTICAL_LABEL, type EngineState, type Run, type Vertical } from '../../shared/engine';
 import { api, ApiError } from '../api';
-import { ago, EngineBar, EngineTag } from '../ui';
+import { ago, EngineBar, EngineTag, SourceMark } from '../ui';
 
 const remembered = (): Vertical => {
   try {
@@ -100,6 +100,7 @@ export default function Board(props: { engine: EngineState; admin: boolean; onSt
                 <span className="rk">{i + 1}</span>
                 <a className="d" href={`#report/${board.runId}/${r.domain}`}>
                   {r.domain}
+                  <SourceMark verified={r.verified} />
                 </a>
                 <EngineBar byEngine={r.byEngine} engines={board.engines} max={perEngine * board.engines.length} />
                 <span className="n">
@@ -112,8 +113,11 @@ export default function Board(props: { engine: EngineState; admin: boolean; onSt
         )}
       </section>
       {board && (
-        <p className="muted small">
-          Open any site for its report. <a href={`#run/${board.runId}`}>See how this run went</a>.
+        <p className="muted small src-legend">
+          <SourceMark verified /> code opened a cited page and it covers the question · <SourceMark verified={false} /> the site blocks
+          automated checks. Pages that are gone or off topic are left out of the counts ({props.engine.sources.dropped} so far, of{' '}
+          {props.engine.sources.ok + props.engine.sources.dropped + props.engine.sources.blocked} checked). Open any site for its report.{' '}
+          <a href={`#run/${board.runId}`}>See how this run went</a>.
         </p>
       )}
     </div>

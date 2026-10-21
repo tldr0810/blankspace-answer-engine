@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { VERTICAL_LABEL, type EngineState, type Lead, type RunDetail } from '../../shared/engine';
 import { api, ApiError } from '../api';
-import { hostOf, Icon, VerdictTag } from '../ui';
+import { hostOf, Icon, PageSkeleton, VerdictTag } from '../ui';
 
 export default function Leads(props: { engine: EngineState; admin: boolean; needPassword: () => void }) {
   const runIds = useMemo(() => {
@@ -30,7 +30,7 @@ export default function Leads(props: { engine: EngineState; admin: boolean; need
     };
   }, [runIds]);
 
-  if (!leads) return <p className="muted">Loading…</p>;
+  if (!leads) return <PageSkeleton kind="leads" label="Loading leads" />;
   const shown = leads.filter((l) => (filter === 'verified' ? l.verdict === 'verified' : filter === 'approved' ? l.status === 'approved' : true));
   const update = (id: string, patch: Partial<Lead>) => setLeads((all) => all!.map((l) => (l.id === id ? { ...l, ...patch } : l)));
 

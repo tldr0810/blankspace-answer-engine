@@ -822,6 +822,30 @@ input[type='checkbox']:checked::after { scale: 1; }
 button:active:not(:disabled):not(.primary), .button:active:not(.primary) { translate: 1px 1px; }
 .tabs button, .seg button { transition: background-color 0.2s, color 0.2s; }
 
+/* ── Source checks: a small mark after a site's name ── */
+.src-mark { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 50%; margin-left: 6px; vertical-align: -2px; flex: 0 0 auto; }
+.src-mark.ok { background: var(--eng-bg); color: var(--eng); border: 1.5px solid var(--eng); }
+.src-mark.ok .icon { stroke-width: 2.6; }
+.src-mark.unchecked { border: 1.5px dashed #9c907c; background: transparent; }
+.board .d { display: inline-flex; align-items: center; min-width: 0; }
+.src-legend .src-mark { margin: 0 3px 0 0; }
+.page-check { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.page-check a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-width: 100%; flex: 1 1 260px; }
+
+/* ── Autopilot (Settings) ── */
+.autopilot h2 { margin-top: 0; }
+.automation { margin-top: 14px; padding: 14px; border: 1.5px dashed var(--hair); border-radius: 14px; background: var(--paper); }
+.automation .eyebrow { display: block; margin-bottom: 4px; }
+.prompt { margin: 8px 0 0; padding: 12px; background: var(--card); border: 1.5px solid var(--ink); border-radius: 10px; font-family: var(--mono); font-size: 12px; white-space: pre-wrap; word-break: break-all; }
+
+/* ── Skeletons shaped like the page that is coming ── */
+.sk-head { display: flex; flex-direction: column; gap: 10px; margin-bottom: 4px; }
+.sk-grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.sk-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.sk-steps { flex-direction: row; flex-wrap: wrap; gap: 18px; }
+.sk-page .sk-row, .sk-page .sk-card { animation: page-in 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; animation-delay: calc(var(--i, 0) * 45ms); }
+@media (max-width: 860px) { .sk-grid2 { grid-template-columns: 1fr; } .sk-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }

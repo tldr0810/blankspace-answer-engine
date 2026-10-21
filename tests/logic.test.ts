@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   acceptAnswers,
+  judgePage,
+  pageCovers,
+  queryKeywords,
+  siteVerified,
+  withoutDropped,
   cleanUrls,
   draftEmail,
   isPublisher,
@@ -104,5 +109,47 @@ describe('draftEmail', () => {
     expect(email).toContain('Hi Jens,');
     expect(email).toContain('blocks ChatGPT-User');
     expect(email.split(/\s+/).length).toBeLessThan(170);
+  });
+});
+
+describe('cited-page checks', () => {
+  const q = 'best noise cancelling headphones under £200';
+
+  it('keeps the words a page has to use', () => {
+    expect(queryKeywords(q)).toEqual(['noise', 'cancelling', 'headphones']);
+  });
+
+  it('a page covers a question when half its keywords appear', () => {
+    expect(pageCovers('our pick of noise cancelling headphone deals', [q])).toBe(true);
+    expect(pageCovers('the best running shoes of the year', [q])).toBe(false);
+    expect(pageCovers('anything', ['best of 2026'])).toBe(true);
+  });
+
+  const page = (status: number, text: string, finalUrl = 'https://site.com/review') => ({ status, text, finalUrl });
+
+  it('judges a live, on-topic page ok', () => {
+    expect(judgePage('https://site.com/review', page(200, '<h1>Noise cancelling headphones tested</h1>'), [q]).verdict).toBe('ok');
+  });
+
+  it('drops gone pages, soft 404s and off-topic pages', () => {
+    expect(judgePage('https://site.com/review', page(404, ''), [q]).verdict).toBe('dead');
+    expect(judgePage('https://site.com/review', page(200, 'headphones noise cancelling', 'https://site.com/'), [q]).verdict).toBe('dead');
+    expect(judgePage('https://site.com/review', page(200, '<p>Garden furniture sale</p>'), [q]).verdict).toBe('off_topic');
+  });
+
+  it('keeps pages a site refused to show us as blocked, not dead', () => {
+    expect(judgePage('https://site.com/review', page(403, ''), [q]).verdict).toBe('blocked');
+    expect(judgePage('https://site.com/review', page(503, ''), [q]).verdict).toBe('blocked');
+    expect(judgePage('https://site.com/review', null, [q]).verdict).toBe('blocked');
+  });
+
+  it('leaves dropped pages out of the counts but keeps the answer in the total', () => {
+    const answers = [{ engine: 'claude' as const, query: q, cited: ['https://a.com/x', 'https://b.com/y'], seen: [] }];
+    const verdicts = new Map([['https://a.com/x', 'dead' as const]]);
+    const rows = tally(withoutDropped(answers, verdicts));
+    expect(rows.map((r) => r.domain)).toEqual(['b.com']);
+    expect(siteVerified(['https://b.com/y'], new Map([['https://b.com/y', 'ok' as const]]))).toBe(true);
+    expect(siteVerified(['https://b.com/y'], new Map([['https://b.com/y', 'blocked' as const]]))).toBe(false);
+    expect(siteVerified(['https://b.com/y'], new Map())).toBe(null);
   });
 });
