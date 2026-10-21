@@ -23,7 +23,8 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "blankspace-answer-engine-db"
+      "database_name": "blankspace-answer-engine-db",
+      "database_id": "41bdb7ae-2299-4a3d-9253-8ee86f6aa528"
     }
   ],
   "durable_objects": {

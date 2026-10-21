@@ -1,6 +1,6 @@
 /** One run, live: the steps, each engine's turn, the feed, who got cited, and the leads. */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { ENGINE_LABEL, ROLE_LABEL, STEPS, STEP_LABEL, VERTICAL_LABEL, type Role, type RunDetail } from '../../shared/engine';
 import { api } from '../api';
 import { ago, EngineBar, EngineTag, Icon, VerdictTag } from '../ui';
@@ -71,7 +71,7 @@ export default function RunView(props: { runId: string; admin: boolean; onChange
                 <span className="n">{i < at ? <Icon name="check" size={12} /> : i + 1}</span>
                 {STEP_LABEL[s]}
               </span>
-              {i < steps.length - 1 && <span className="conn" />}
+              {i < steps.length - 1 && <span className={`conn ${i < at ? 'done' : ''}`} />}
             </span>
           ))}
         </div>
@@ -107,8 +107,12 @@ export default function RunView(props: { runId: string; admin: boolean; onChange
                 <span className="muted small">Bar = answers citing the site, out of {perEngine} per engine</span>
               </div>
               <ol className="board">
-                {detail.board.slice(0, 12).map((r) => (
-                  <li key={r.domain} className={`${r.domain === run.domain ? 'you' : ''} ${r.publisher === false ? 'off' : ''}`}>
+                {detail.board.slice(0, 12).map((r, i) => (
+                  <li
+                    key={r.domain}
+                    className={`${r.domain === run.domain ? 'you' : ''} ${r.publisher === false ? 'off' : ''}`}
+                    style={{ '--i': i } as CSSProperties}
+                  >
                     <span className="d">{r.domain}</span>
                     <EngineBar byEngine={r.byEngine} engines={run.engines} max={max} />
                     <span className="n">{r.answers}</span>

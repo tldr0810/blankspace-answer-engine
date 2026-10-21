@@ -184,7 +184,12 @@ export default function App() {
             </a>
           )}
         </div>
-        <div className="page">{body}</div>
+        <div className="page">
+          {/* Keyed on the route so each page eases in when you move between them. */}
+          <div key={`${page}/${route.runId ?? ''}/${route.domain ?? ''}`} className="page-in">
+            {body}
+          </div>
+        </div>
       </main>
 
       {gateOpen && needsPassword && (

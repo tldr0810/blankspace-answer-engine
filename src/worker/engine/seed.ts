@@ -36,14 +36,19 @@ let seeding: Promise<void> | null = null;
 export function ensureSeed(env: Env, origin: string): Promise<void> {
   if (!seeding) {
     seeding = (async () => {
-      const done = await env.DB.prepare('SELECT COUNT(*) AS n FROM runs WHERE seed = 1').first<{ n: number }>();
-      if ((done?.n ?? 0) > 0) return;
+      const { results: seeded } = await env.DB.prepare('SELECT id FROM runs WHERE seed = 1').all<{ id: string }>();
+      const done = new Set(seeded.map((r) => r.id));
       const data = seed as unknown as SeedFile;
       const engines: Engine[] = ['claude', 'gemini'];
       for (const vertical of VERTICALS) {
-        const block = data.verticals[vertical];
         const runId = `seed_${vertical}`;
-        await insertRun(env, {
+        if (done.has(runId)) continue;
+        const block = data.verticals[vertical];
+        // The run row goes in last, so a vertical cut off mid-seed is cleared and seeded again.
+        await env.DB.batch(
+          ['answers', 'leads', 'events'].map((table) => env.DB.prepare(`DELETE FROM ${table} WHERE run_id = ?`).bind(runId)),
+        );
+        const run = {
           id: runId,
           kind: 'vertical',
           vertical,
@@ -57,7 +62,7 @@ export function ensureSeed(env: Env, origin: string): Promise<void> {
           startedAt: data.runAt,
           finishedAt: data.runAt,
           error: null,
-        });
+        } as const;
         await insertAnswers(env, runId, block.answers);
         for (const site of block.sites) await saveFacts(env, { ...site, checkedAt: data.runAt });
         const rows = tally(block.answers);
@@ -108,6 +113,7 @@ export function ensureSeed(env: Env, origin: string): Promise<void> {
         await env.DB.prepare('INSERT INTO events (run_id, text, created_at) VALUES (?, ?, ?)')
           .bind(runId, `First run, made with a Claude and a Gemini agent on Manyfold: ${total} answers, ${rows.length} sites cited, ${block.leads.length} publishers kept after the fact-check.`, data.runAt)
           .run();
+        await insertRun(env, run);
       }
     })().catch((error) => {
       seeding = null;

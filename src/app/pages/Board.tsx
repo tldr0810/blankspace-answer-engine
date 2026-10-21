@@ -1,6 +1,6 @@
 /** AI answer share by vertical: the monthly leaderboard publishers would want to be on. */
 
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { VERTICALS, VERTICAL_LABEL, type EngineState, type Run, type Vertical } from '../../shared/engine';
 import { api, ApiError } from '../api';
 import { ago, EngineBar, EngineTag } from '../ui';
@@ -94,9 +94,9 @@ export default function Board(props: { engine: EngineState; admin: boolean; onSt
         {!board ? (
           <p className="empty">No run for this vertical yet.</p>
         ) : (
-          <ol className="board big">
+          <ol className="board big" key={board.runId}>
             {rows.map((r, i) => (
-              <li key={r.domain} className={r.publisher === false ? 'off' : ''}>
+              <li key={r.domain} className={r.publisher === false ? 'off' : ''} style={{ '--i': i } as CSSProperties}>
                 <span className="rk">{i + 1}</span>
                 <a className="d" href={`#report/${board.runId}/${r.domain}`}>
                   {r.domain}

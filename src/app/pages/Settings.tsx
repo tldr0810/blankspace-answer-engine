@@ -5,6 +5,7 @@ import { ROLES, ROLE_HELP, ROLE_LABEL, type EngineState, type Role } from '../..
 import type { AppState } from '../../shared/types';
 import { api, ApiError } from '../api';
 import ConnectPanel from '../components/ConnectPanel';
+import { Picker } from '../ui';
 
 export default function Settings(props: { app: AppState; engine: EngineState; onChange: () => Promise<void> }) {
   const [error, setError] = useState('');
@@ -41,7 +42,7 @@ export default function Settings(props: { app: AppState; engine: EngineState; on
       </div>
       {error && <div className="notice error">{error}</div>}
 
-      <section className="card lift clip">
+      <section className="card lift">
         <div className="lh">
           <div>
             <h2>Roles</h2>
@@ -56,20 +57,14 @@ export default function Settings(props: { app: AppState; engine: EngineState; on
                 <div className="rn">{ROLE_LABEL[role]}</div>
                 <div className="rd">{ROLE_HELP[role]}</div>
               </div>
-              <select
-                id={`role-${role}`}
+              <Picker
                 value={props.engine.roles[role] ?? ''}
                 disabled={busy === `role-${role}`}
-                onChange={(e) => void assign(role, e.target.value)}
-                aria-label={`Agent for ${ROLE_LABEL[role]}`}
-              >
-                <option value="">Not assigned</option>
-                {agents.map((a) => (
-                  <option key={a.agentId} value={a.agentId}>
-                    {a.name}
-                  </option>
-                ))}
-              </select>
+                onChange={(value) => void assign(role, value)}
+                label={`Agent for ${ROLE_LABEL[role]}`}
+                options={[{ value: '', label: 'Not assigned' }, ...agents.map((a) => ({ value: a.agentId, label: a.name }))]}
+                dot
+              />
               <span className="last" />
             </div>
           ))}
