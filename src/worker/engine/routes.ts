@@ -57,7 +57,10 @@ export function engineRoutes(adminOk: AdminCheck) {
 
   app.use('*', async (c, next) => {
     const origin = new URL(c.req.url).origin;
-    await ensureSeed(c.env, origin);
+    // waitUntil keeps the seed writing if this request is cancelled, since later requests share it.
+    const seeding = ensureSeed(c.env, origin);
+    c.executionCtx.waitUntil(seeding.catch(() => {}));
+    await seeding;
     if (c.req.method === 'POST') await rememberOrigin(c.env, origin);
     await next();
   });
