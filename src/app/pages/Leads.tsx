@@ -1,11 +1,13 @@
 /**
- * Contacts and first-email drafts. The owner edits, approves or skips; nothing is sent from
- * the app. Names the fact-check could not confirm are shown as the role only.
+ * Contacts and first-email drafts. The owner edits To, Subject and body, then Send approves the
+ * draft and opens their own mail app with it; the app itself never sends mail. Names the
+ * fact-check could not confirm are shown as the role only.
  */
 
 import { useEffect, useMemo, useState } from 'react';
 import { VERTICAL_LABEL, type EngineState, type Lead, type RunDetail } from '../../shared/engine';
 import { api, ApiError } from '../api';
+import { isEmailAddress, joinEmail, mailtoHref, splitEmail, type EmailParts } from '../../shared/email';
 import { hostOf, Icon, PageSkeleton, VerdictTag } from '../ui';
 
 export default function Leads(props: { engine: EngineState; admin: boolean; needPassword: () => void }) {
@@ -73,31 +75,44 @@ export default function Leads(props: { engine: EngineState; admin: boolean; need
 
 function LeadRow(props: { lead: Lead; open: boolean; onToggle: () => void; admin: boolean; needPassword: () => void; onUpdate: (patch: Partial<Lead>) => void }) {
   const { lead } = props;
-  const [text, setText] = useState(lead.email ?? '');
+  const [draft, setDraft] = useState<EmailParts>(() => splitEmail(lead.email ?? ''));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const text = joinEmail(draft);
+  const dirty = text !== joinEmail(splitEmail(lead.email ?? ''));
+  const named = lead.verdict === 'verified' && lead.contactName;
+  const recipient = named ? `${lead.contactName}${lead.contactRole ? ` · ${lead.contactRole}` : ''}` : (lead.contactRole ?? 'commercial lead');
+  const canSend = isEmailAddress(draft.to) && draft.subject.trim() !== '' && draft.body.trim() !== '';
+  const set = (key: keyof EmailParts) => (e: { target: { value: string } }) => setDraft((d) => ({ ...d, [key]: e.target.value }));
 
   const save = async (patch: { email?: string; status?: Lead['status'] }) => {
     if (!props.admin) {
       props.needPassword();
-      return;
+      return false;
     }
     setSaving(true);
     setError('');
     try {
       await api(`/api/engine/leads/${encodeURIComponent(lead.id)}`, { method: 'PATCH', body: JSON.stringify(patch) });
       props.onUpdate(patch);
+      return true;
     } catch (err) {
       setError(err instanceof ApiError ? err.message : String(err));
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
+  const send = async () => {
+    if (!(await save({ email: text, status: 'approved' }))) return;
+    window.location.href = mailtoHref(draft);
+  };
+
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(`Subject: ${draft.subject}\n\n${draft.body}`);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -126,55 +141,106 @@ function LeadRow(props: { lead: Lead; open: boolean; onToggle: () => void; admin
         </span>
       </div>
       {props.open && (
-        <div className="mail">
-          <ul className="sig">
-            <li>
-              <span className="t">Cited</span> in {lead.answers} of {lead.total} AI answers · <a href={`#report/${lead.runId}/${lead.domain}`}>report</a>
-            </li>
-            {lead.owner && (
-              <li>
-                <span className="t">Owner</span> {lead.owner}
-                {lead.companyType ? ` · ${lead.companyType}` : ''}
-              </li>
-            )}
-            {lead.monetisation && (
-              <li>
-                <span className="t">Money</span> {lead.monetisation}
-              </li>
-            )}
-            {lead.verifyNote && (
-              <li>
-                <span className="t">Check</span> {lead.verifyNote}{' '}
-                {lead.contactSourceUrl && (
-                  <a className="src" href={lead.contactSourceUrl} target="_blank" rel="noreferrer">
-                    Source <b>{hostOf(lead.contactSourceUrl)}</b>
-                  </a>
-                )}
-              </li>
-            )}
-          </ul>
-          <div className="meta">To: {lead.verdict === 'verified' && lead.contactName ? `${lead.contactName} · ${lead.contactRole ?? ''}` : `${lead.contactRole ?? 'commercial lead'} (find the name before sending)`}</div>
-          {props.admin ? <textarea className="field" value={text} onChange={(e) => setText(e.target.value)} aria-label="Email draft" /> : <pre>{text}</pre>}
-          <div className="mailbar">
-            <span className="muted small">{props.admin ? 'Edits are saved to this draft only.' : 'Owner can edit and approve.'}</span>
-            <span className="row">
-              <button className="sm" onClick={() => void copy()}>
-                {copied ? 'Copied' : 'Copy'}
-              </button>
-              {props.admin && text !== (lead.email ?? '') && (
-                <button className="sm" disabled={saving} onClick={() => void save({ email: text })}>
-                  Save edit
-                </button>
+        <div className="lead-open">
+          <aside className="facts" aria-label={`What we know about ${lead.domain}`}>
+            <span className="eyebrow">The facts</span>
+            <dl>
+              <div>
+                <dt>Cited</dt>
+                <dd>
+                  <b className="big">
+                    {lead.answers}
+                    <small> of {lead.total}</small>
+                  </b>
+                  <span>
+                    AI answers · <a href={`#report/${lead.runId}/${lead.domain}`}>see the report</a>
+                  </span>
+                </dd>
+              </div>
+              {lead.owner && (
+                <div>
+                  <dt>Owner</dt>
+                  <dd>
+                    {lead.owner}
+                    {lead.companyType && <span className="sub">{lead.companyType}</span>}
+                  </dd>
+                </div>
               )}
-              <button className="sm" disabled={saving} onClick={() => void save({ status: lead.status === 'skipped' ? 'draft' : 'skipped' })}>
-                {lead.status === 'skipped' ? 'Restore' : 'Skip'}
-              </button>
-              <button className="primary sm" disabled={saving || lead.status === 'approved'} onClick={() => void save({ status: 'approved', email: text })}>
-                {lead.status === 'approved' ? 'Approved' : 'Approve'}
-              </button>
-            </span>
-          </div>
-          {error && <div className="notice error">{error}</div>}
+              {lead.monetisation && (
+                <div>
+                  <dt>Money</dt>
+                  <dd>{lead.monetisation}</dd>
+                </div>
+              )}
+              <div>
+                <dt>Contact</dt>
+                <dd>
+                  <span className="row wrap">
+                    {recipient} <VerdictTag lead={lead} />
+                  </span>
+                  {lead.verifyNote && <span className="sub">{lead.verifyNote}</span>}
+                  {lead.contactSourceUrl && (
+                    <a className="src" href={lead.contactSourceUrl} target="_blank" rel="noreferrer">
+                      Source <b>{hostOf(lead.contactSourceUrl)}</b>
+                    </a>
+                  )}
+                </dd>
+              </div>
+            </dl>
+          </aside>
+
+          <section className="composer" aria-label="Email draft">
+            <header>
+              <span className="eyebrow">Email</span>
+              <span className={`tag ${lead.status === 'approved' ? 't-you' : 't-mute'}`}>{lead.status === 'draft' ? (dirty ? 'unsaved edits' : 'draft') : lead.status}</span>
+            </header>
+            <label className="cf">
+              <span>To</span>
+              {props.admin ? (
+                <input type="text" inputMode="email" autoComplete="off" spellCheck={false} value={draft.to} onChange={set('to')} placeholder={named ? `${lead.contactName}'s email address` : `Email address of the ${recipient}`} />
+              ) : (
+                <span className="cv muted">{recipient}</span>
+              )}
+            </label>
+            <label className="cf">
+              <span>Subject</span>
+              {props.admin ? <input type="text" value={draft.subject} onChange={set('subject')} placeholder="Subject" /> : <span className="cv">{draft.subject}</span>}
+            </label>
+            {props.admin ? (
+              <textarea className="cbody" value={draft.body} onChange={set('body')} aria-label="Email body" />
+            ) : (
+              <pre className="cbody">{draft.body}</pre>
+            )}
+            <footer>
+              <span className="muted small">
+                {!props.admin
+                  ? 'Owner can edit and send.'
+                  : !isEmailAddress(draft.to)
+                    ? named
+                      ? `Add ${lead.contactName}'s address to send.`
+                      : `Find the ${recipient}'s name and address before sending.`
+                    : 'Send opens your mail app with this draft.'}
+              </span>
+              <span className="row">
+                <button className="sm" onClick={() => void copy()}>
+                  {copied ? 'Copied' : 'Copy'}
+                </button>
+                <button className="sm" disabled={saving} onClick={() => void save({ status: lead.status === 'skipped' ? 'draft' : 'skipped' })}>
+                  {lead.status === 'skipped' ? 'Restore' : 'Skip'}
+                </button>
+                {props.admin && dirty && (
+                  <button className="sm" disabled={saving} onClick={() => void save({ email: text })}>
+                    Save draft
+                  </button>
+                )}
+                <button className="primary sm" disabled={saving || (props.admin && !canSend)} onClick={() => void send()}>
+                  <Icon name="send" />
+                  {lead.status === 'approved' ? 'Send again' : 'Send'}
+                </button>
+              </span>
+            </footer>
+            {error && <div className="notice error">{error}</div>}
+          </section>
         </div>
       )}
     </>

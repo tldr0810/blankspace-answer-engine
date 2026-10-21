@@ -13,6 +13,7 @@
  *   PUT   /autopilot                     { enabled } pause or resume it
  */
 
+import { joinEmail, splitEmail } from '../../shared/email';
 import { Hono } from 'hono';
 import {
   ROLES,
@@ -168,7 +169,14 @@ export function engineRoutes(adminOk: AdminCheck) {
       events,
       board: board.rows.slice(0, 20).map(({ pages: _p, queries: _q, ...row }) => row),
       total: board.total,
-      leads: adminOk(c) ? leads : leads.map((l) => ({ ...l, contactName: l.verdict === 'verified' ? l.contactName : null })),
+      leads: adminOk(c)
+        ? leads
+        : leads.map((l) => ({
+            ...l,
+            contactName: l.verdict === 'verified' ? l.contactName : null,
+            // The address the owner typed stays owner-only.
+            email: l.email ? joinEmail({ ...splitEmail(l.email), to: '' }) : null,
+          })),
       calls,
     };
     return c.json(detail);

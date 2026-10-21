@@ -25,7 +25,7 @@ import {
 } from '../../shared/engine';
 import { credentialFor } from '../connect';
 import { now } from '../db';
-import { safeErrorText } from '../a2a';
+import { A2AError, safeErrorText } from '../a2a';
 import type { Env } from '../types';
 import { checkSite, verifyContact } from './fetchers';
 import { acceptAnswers, draftEmail, isPublisher, listedNonPublisher, score as scoreSite } from './logic';
@@ -55,8 +55,16 @@ const SITE_QUESTIONS = 5;
 const ENRICH_PER_TICK = 3;
 const VERIFY_PER_TICK = 3;
 const PAGES_PER_TICK = 10;
-/** About 45 minutes of polling before a turn is given up on. */
+/** Wall-clock limit for one agent turn, counted from its submit. */
+const TURN_DEADLINE_MS = 25 * 60_000;
+/** Fallback for calls stored before submittedAt existed. */
 const MAX_POLLS = 80;
+/** Consecutive failed submits or polls of one call before that turn is given up on. */
+const MAX_CALL_ERRORS = 6;
+/** Consecutive failed ticks before the run stops instead of retrying. */
+const MAX_TICK_ERRORS = 10;
+/** Backstop: a run still going after this is stopped, whatever step it is on. */
+const RUN_DEADLINE_MS = 3 * 3_600_000;
 const TERMINAL = ['completed', 'failed', 'canceled', 'rejected', 'input-required', 'auth-required'];
 
 interface CallState {
@@ -68,6 +76,9 @@ interface CallState {
   emptyPolls: number;
   resubmits: number;
   status: 'pending' | 'done' | 'failed';
+  submittedAt?: number;
+  /** Consecutive failed submits or polls; reset by any good answer from the agent. */
+  errors?: number;
 }
 
 interface Bag {
@@ -77,6 +88,7 @@ interface Bag {
   candidates: string[];
   enriched: number;
   verified: number;
+  tickErrors?: number;
 }
 
 const emptyBag = (): Bag => ({ calls: {}, candidates: [], enriched: 0, verified: 0 });
@@ -111,47 +123,108 @@ export function newRun(kind: RunKind, options: { vertical: Vertical; domain?: st
 
 /* ───────── agent calls ───────── */
 
-async function submit(env: Env, run: Run, role: Role, agentId: string, prompt: string, resubmits: number): Promise<CallState> {
-  const cred = await credentialFor(env, agentId);
+const callIdFor = (run: Run, role: Role, resubmits: number) => `${run.id}.${role}${resubmits ? `.s${resubmits}` : ''}`;
+
+async function submit(env: Env, run: Run, call: CallState, prompt: string): Promise<void> {
+  const cred = await credentialFor(env, call.agentId);
   // Derived from stored state: an automatic retry of the same submit reuses the id, so the agent
   // sees the same message and bills once. A deliberate resubmit gets a new suffix.
-  const callId = `${run.id}.${role}${resubmits ? `.s${resubmits}` : ''}`;
   await env.DB.prepare(
     `INSERT OR IGNORE INTO agent_calls (id, run_id, role, agent_id, label, state, created_at) VALUES (?, ?, ?, ?, ?, 'submitted', ?)`,
   )
-    .bind(callId, run.id, role, agentId, role.startsWith('scout_') ? `${run.questions.length} questions` : 'profiles', now())
+    .bind(call.callId, run.id, call.role, call.agentId, call.role.startsWith('scout_') ? `${run.questions.length} questions` : 'profiles', now())
     .run();
-  const snap = await submitTask(cred, { messageId: callId, text: prompt });
-  if (!snap.taskId) throw new FatalError(`${cred.label} accepted the task but returned no task id.`);
+  const snap = await submitTask(cred, { messageId: call.callId, text: prompt });
+  if (!snap.taskId) throw new A2AError(`${cred.label} accepted the task but returned no task id.`, false);
   await env.DB.prepare('UPDATE agent_calls SET task_id = ?, context_id = ?, state = ? WHERE id = ?')
-    .bind(snap.taskId, snap.contextId, snap.state || 'submitted', callId)
+    .bind(snap.taskId, snap.contextId, snap.state || 'submitted', call.callId)
     .run();
-  return { role, agentId, callId, taskId: snap.taskId, polls: 0, emptyPolls: 0, resubmits, status: 'pending' };
+  call.taskId = snap.taskId;
+  call.submittedAt = Date.now();
 }
 
-/** Polls one call. Returns the reply text when it finished, null while it is still working. */
+/** Polls one call once. Returns the reply text when it finished, null while it is still working. */
 async function poll(env: Env, call: CallState): Promise<{ text: string } | { failed: string } | null> {
   const cred = await credentialFor(env, call.agentId);
   const snap = await getTask(cred, call.taskId!);
   call.polls += 1;
+  const late = call.submittedAt ? Date.now() - call.submittedAt > TURN_DEADLINE_MS : call.polls >= MAX_POLLS;
   // A task can say completed a moment before its artifact lands: give it a grace period.
-  if (snap.state === 'completed' && !snap.text && call.emptyPolls < 6) {
+  if (snap.state === 'completed' && !snap.text && call.emptyPolls < 6 && !late) {
     call.emptyPolls += 1;
     return null;
   }
   if (!TERMINAL.includes(snap.state)) {
-    if (call.polls >= MAX_POLLS) return { failed: 'did not finish in time' };
+    if (late) return { failed: `did not finish within ${TURN_DEADLINE_MS / 60_000} minutes` };
     return null;
   }
   await env.DB.prepare('UPDATE agent_calls SET state = ?, output_text = ?, finished_at = ? WHERE id = ?')
     .bind(snap.state, snap.text.slice(0, 60_000), now(), call.callId)
     .run();
   if (snap.state !== 'completed') return { failed: `ended as ${snap.state}` };
+  if (!snap.text) return { failed: 'came back empty' };
   return { text: snap.text };
 }
 
 async function callError(env: Env, call: CallState, error: string): Promise<void> {
   await env.DB.prepare('UPDATE agent_calls SET state = ?, error = ? WHERE id = ?').bind('invalid_output', error, call.callId).run();
+}
+
+type Drive = { text: string } | 'pending' | 'settled';
+
+/**
+ * Moves one agent call forward by one request, never waiting on the agent: submit when it has no
+ * task yet, otherwise one tasks/get. A call that keeps erroring, stalls past its deadline or ends
+ * badly is sent once more and then given up on, so one silent agent can never hold the run.
+ * Returns the reply text once, 'pending' while there is more to do, 'settled' when finished.
+ */
+async function driveCall(
+  env: Env,
+  run: Run,
+  bag: Bag,
+  opts: { role: Role; agentId: string; prompt: string; name: string; giveUp: string },
+): Promise<Drive> {
+  let call = bag.calls[opts.role];
+  if (!call) {
+    call = { role: opts.role, agentId: opts.agentId, callId: callIdFor(run, opts.role, 0), taskId: null, polls: 0, emptyPolls: 0, resubmits: 0, status: 'pending' };
+    bag.calls[opts.role] = call;
+  }
+  if (call.status !== 'pending') return 'settled';
+
+  let outcome: { text: string } | { failed: string } | null;
+  try {
+    if (!call.taskId) {
+      await submit(env, run, call, opts.prompt);
+      call.errors = 0;
+      return 'pending';
+    }
+    outcome = await poll(env, call);
+    call.errors = 0;
+  } catch (error) {
+    // Anything that is not the agent (D1, a bug) goes up to the tick's own retry.
+    if (!(error instanceof A2AError)) throw error;
+    call.errors = (call.errors ?? 0) + 1;
+    if (error.retryable && call.errors < MAX_CALL_ERRORS) {
+      await updateRun(env, run.id, { stepDetail: `Waiting on ${opts.name} (${error.message.slice(0, 80)})` });
+      return 'pending';
+    }
+    outcome = { failed: `could not be reached (${error.message.slice(0, 120)})` };
+  }
+  if (!outcome) return 'pending';
+  if ('text' in outcome) return outcome;
+
+  await env.DB.prepare(`UPDATE agent_calls SET state = CASE WHEN state IN ('submitted', 'working') THEN 'abandoned' ELSE state END, error = ? WHERE id = ?`)
+    .bind(outcome.failed, call.callId)
+    .run();
+  if (call.resubmits < 1) {
+    const resubmits = call.resubmits + 1;
+    bag.calls[opts.role] = { ...call, callId: callIdFor(run, opts.role, resubmits), taskId: null, polls: 0, emptyPolls: 0, errors: 0, resubmits, submittedAt: undefined };
+    await addEvent(env, run.id, `${opts.name}'s turn ${outcome.failed}. Sending it once more.`);
+    return 'pending';
+  }
+  call.status = 'failed';
+  await addEvent(env, run.id, `${opts.name}'s turn ${outcome.failed} again. ${opts.giveUp}`);
+  return 'settled';
 }
 
 /* ───────── steps ───────── */
@@ -160,57 +233,52 @@ type StepResult = { next?: Step; wait?: number };
 
 async function stepAsk(env: Env, run: Run, bag: Bag): Promise<StepResult> {
   const roles = await roleMap(env);
-  let pending = false;
-  for (const engine of run.engines) {
-    const role = scoutRole(engine);
-    let call = bag.calls[role];
-    if (!call) {
-      const agentId = roles[role];
-      if (!agentId) {
-        await addEvent(env, run.id, `No agent is assigned as the ${engine} scout, so that engine is skipped.`);
-        bag.calls[role] = { role, agentId: '', callId: '', taskId: null, polls: 0, emptyPolls: 0, resubmits: 0, status: 'failed' };
-        continue;
+  // Every engine moves forward on its own in the same tick: a slow or broken one never blocks the rest.
+  const states = await Promise.all(
+    run.engines.map(async (engine) => {
+      const role = scoutRole(engine);
+      const existing = bag.calls[role];
+      if (!existing) {
+        const agentId = roles[role];
+        if (!agentId) {
+          await addEvent(env, run.id, `No agent is assigned as the ${engine} scout, so that engine is skipped.`);
+          bag.calls[role] = { role, agentId: '', callId: '', taskId: null, polls: 0, emptyPolls: 0, resubmits: 0, status: 'failed' };
+          return 'settled';
+        }
       }
-      bag.calls[role] = await submit(env, run, role, agentId, scoutPrompt(run.questions), 0);
-      await addEvent(env, run.id, `Sent ${run.questions.length} buying ${run.questions.length === 1 ? 'question' : 'questions'} to the ${engine} scout.`);
-      pending = true;
-      continue;
-    }
-    if (call.status !== 'pending') continue;
-    const outcome = await poll(env, call);
-    if (!outcome) {
-      pending = true;
-      continue;
-    }
-    if ('failed' in outcome) {
-      if (call.resubmits < 1) {
-        await addEvent(env, run.id, `The ${engine} scout's turn ${outcome.failed}. Sending it once more.`);
-        bag.calls[role] = await submit(env, run, role, call.agentId, scoutPrompt(run.questions), call.resubmits + 1);
-        pending = true;
-      } else {
+      const drive = await driveCall(env, run, bag, {
+        role,
+        agentId: existing?.agentId ?? roles[role]!,
+        prompt: scoutPrompt(run.questions),
+        name: `The ${engine} scout`,
+        giveUp: 'Going on without it.',
+      });
+      if (!existing && bag.calls[role]?.taskId) {
+        await addEvent(env, run.id, `Sent ${run.questions.length} buying ${run.questions.length === 1 ? 'question' : 'questions'} to the ${engine} scout.`);
+      }
+      if (typeof drive === 'string') return drive;
+      const call = bag.calls[role]!;
+      try {
+        const parsed = scoutSchema.parse(extractJson(drive.text));
+        const { answers, dropped } = acceptAnswers(engine, run.questions, parsed.answers);
+        await insertAnswers(env, run.id, answers);
+        call.status = 'done';
+        const cited = answers.reduce((n, a) => n + a.cited.length, 0);
+        await addEvent(
+          env,
+          run.id,
+          `The ${engine} scout answered ${answers.length} of ${run.questions.length} questions with ${cited} citations.` +
+            (dropped ? ` Code dropped ${dropped} cited ${dropped === 1 ? 'URL' : 'URLs'} that its own search never returned.` : ''),
+        );
+      } catch (error) {
         call.status = 'failed';
-        await addEvent(env, run.id, `The ${engine} scout's turn ${outcome.failed} again. Going on without it.`);
+        await callError(env, call, problemText(error));
+        await addEvent(env, run.id, `The ${engine} scout's reply could not be read (${problemText(error).slice(0, 140)}).`);
       }
-      continue;
-    }
-    try {
-      const parsed = scoutSchema.parse(extractJson(outcome.text));
-      const { answers, dropped } = acceptAnswers(engine, run.questions, parsed.answers);
-      await insertAnswers(env, run.id, answers);
-      call.status = 'done';
-      const cited = answers.reduce((n, a) => n + a.cited.length, 0);
-      await addEvent(
-        env,
-        run.id,
-        `The ${engine} scout answered ${answers.length} of ${run.questions.length} questions with ${cited} citations.` +
-          (dropped ? ` Code dropped ${dropped} cited ${dropped === 1 ? 'URL' : 'URLs'} that its own search never returned.` : ''),
-      );
-    } catch (error) {
-      call.status = 'failed';
-      await callError(env, call, problemText(error));
-      await addEvent(env, run.id, `The ${engine} scout's reply could not be read (${problemText(error).slice(0, 140)}).`);
-    }
-  }
+      return 'settled';
+    }),
+  );
+  const pending = states.includes('pending');
   const progress = Object.values(bag.calls).filter((c) => c && c.status !== 'pending').length;
   await updateRun(env, run.id, { stepDetail: `${progress} of ${run.engines.length} engines finished` });
   if (pending) return { wait: 15_000 };
@@ -309,32 +377,27 @@ async function stepProfile(env: Env, run: Run, bag: Bag): Promise<StepResult> {
   const leads = await runLeads(env, run.id);
   if (!leads.length) return { next: 'draft' };
   const roles = await roleMap(env);
-  let call = bag.calls.profiler;
-  if (!call) {
-    if (!roles.profiler) {
-      await addEvent(env, run.id, 'No profiler agent is assigned, so the drafts go to a role, not a person.');
-      return { next: 'verify' };
-    }
-    bag.calls.profiler = await submit(env, run, 'profiler', roles.profiler, profilePrompt(leads.map((l) => l.domain)), 0);
-    await addEvent(env, run.id, `Asked the profiler who owns ${leads.length === 1 ? leads[0].domain : `${leads.length} sites`} and who to talk to.`);
-    return { wait: 20_000 };
-  }
-  if (call.status !== 'pending') return { next: 'verify' };
-  const outcome = await poll(env, call);
-  if (!outcome) {
-    await updateRun(env, run.id, { stepDetail: 'The profiler is researching' });
-    return { wait: 20_000 };
-  }
-  if ('failed' in outcome) {
-    if (call.resubmits < 1) {
-      bag.calls.profiler = await submit(env, run, 'profiler', call.agentId, profilePrompt(leads.map((l) => l.domain)), 1);
-      await addEvent(env, run.id, `The profiler's turn ${outcome.failed}. Sending it once more.`);
-      return { wait: 20_000 };
-    }
-    call.status = 'failed';
-    await addEvent(env, run.id, `The profiler's turn ${outcome.failed} again. The drafts will go to a role.`);
+  const existing = bag.calls.profiler;
+  if (!existing && !roles.profiler) {
+    await addEvent(env, run.id, 'No profiler agent is assigned, so the drafts go to a role, not a person.');
     return { next: 'verify' };
   }
+  const outcome = await driveCall(env, run, bag, {
+    role: 'profiler',
+    agentId: existing?.agentId ?? roles.profiler!,
+    prompt: profilePrompt(leads.map((l) => l.domain)),
+    name: 'The profiler',
+    giveUp: 'The drafts will go to a role.',
+  });
+  if (!existing && bag.calls.profiler?.taskId) {
+    await addEvent(env, run.id, `Asked the profiler who owns ${leads.length === 1 ? leads[0].domain : `${leads.length} sites`} and who to talk to.`);
+  }
+  if (outcome === 'settled') return { next: 'verify' };
+  if (outcome === 'pending') {
+    if (existing) await updateRun(env, run.id, { stepDetail: 'The profiler is researching' });
+    return { wait: 20_000 };
+  }
+  const call = bag.calls.profiler!;
   try {
     const parsed = profileSchema.parse(extractJson(outcome.text));
     let named = 0;
@@ -428,6 +491,12 @@ export async function tick(env: Env, runId: string): Promise<number | null> {
   const run = await getRun(env, runId);
   if (!run || run.status !== 'running') return null;
   const bag = await loadState<Bag>(env, runId, emptyBag());
+  if (Date.now() - Date.parse(run.startedAt) > RUN_DEADLINE_MS) {
+    const message = `Stopped after ${RUN_DEADLINE_MS / 3_600_000} hours on the ${run.step} step.`;
+    await updateRun(env, runId, { status: 'failed', error: message, finishedAt: now() });
+    await addEvent(env, runId, `The run stopped: ${message}`);
+    return null;
+  }
   let result: StepResult;
   try {
     switch (run.step) {
@@ -442,8 +511,9 @@ export async function tick(env: Env, runId: string): Promise<number | null> {
   } catch (error) {
     const message = safeErrorText(error instanceof Error ? error.message : error);
     const fatal = error instanceof FatalError || error instanceof z.ZodError || !/timeout|timed out|temporar|unavailable|50\d|network|fetch/i.test(message);
+    bag.tickErrors = (bag.tickErrors ?? 0) + 1;
     await saveState(env, runId, bag);
-    if (!fatal) {
+    if (!fatal && bag.tickErrors < MAX_TICK_ERRORS) {
       await updateRun(env, runId, { stepDetail: `Retrying after a temporary error: ${message.slice(0, 120)}` });
       return 30_000;
     }
@@ -451,6 +521,7 @@ export async function tick(env: Env, runId: string): Promise<number | null> {
     await addEvent(env, runId, `The run stopped: ${message}`);
     return null;
   }
+  bag.tickErrors = 0;
   await saveState(env, runId, bag);
   if (result.next === 'done') {
     await updateRun(env, runId, { status: 'done', step: 'done', stepDetail: null, finishedAt: now() });

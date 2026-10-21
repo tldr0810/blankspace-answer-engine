@@ -11,6 +11,7 @@ const ICON_PATHS = {
   out: <path d="M6.5 3.5h-3v9h9v-3M9.5 3.5h3v3M12.5 3.5L7.5 8.5" />,
   play: <path d="M5 3.5v9l7-4.5z" />,
   down: <path d="M4 6l4 4 4-4" />,
+  send: <path d="M2.5 7.5l11-5-4 11-2-4.5zM7.5 9l6-6.5" />,
 };
 
 export function Icon(props: { name: keyof typeof ICON_PATHS; size?: number; className?: string }) {
