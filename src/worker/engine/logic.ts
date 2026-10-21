@@ -1,0 +1,280 @@
+/**
+ * The engine's pure logic: counting, scoring, filtering, robots parsing, name checks and
+ * the email template. No I/O here, so every number the dashboard shows can be unit tested.
+ *
+ * The split follows one rule: agents judge, code counts. Agents answer questions and suggest
+ * contacts. Code decides what a citation is, who ranks where, and whether a name stands.
+ */
+
+import { AI_AGENTS, ENGINE_LABEL, VERTICAL_LABEL, type BoardRow, type Engine, type SiteFacts, type Vertical } from '../../shared/engine';
+
+/** Cited often, but not ad- or affiliate-funded publishers. */
+export const NOT_PUBLISHERS = [
+  'amazon.', 'ebay.', 'reddit.com', 'youtube.com', 'wikipedia.org', 'facebook.com', 'instagram.com',
+  'tiktok.com', 'x.com', 'twitter.com', 'quora.com', 'apple.com', 'google.com', 'gov.uk', 'linkedin.com',
+  'microsoft.com', 'g2.com', 'capterra.', 'trustpilot.com', 'idealo.', 'pricespy.', 'tripadvisor.',
+  'booking.com', 'expedia.', 'britishairways.com', 'easyjet.com', 'ryanair.com', 'nhs.uk',
+];
+
+export const AFFILIATE_MARKERS = [
+  'amzn.to', 'amazon.co.uk/dp', 'amazon.com/dp', 'tag=', 'skimlinks', 'sovrn', 'viglink', 'awin1.com',
+  'impact.com', 'prf.hn', 'rakuten', 'anrdoezrs', 'go.redirectingat.com', 'howl.me', 'shareasale',
+  'pjtra.com', 'tkqlhce.com', 'dpbolvw.net', 'avantlink', 'partnerize',
+];
+
+export const EDGE_CDNS = ['Cloudflare', 'Fastly', 'CloudFront', 'Akamai'];
+
+export interface Answer {
+  engine: Engine;
+  query: string;
+  cited: string[];
+  seen: string[];
+}
+
+export function domainOf(url: string): string {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return host.startsWith('www.') ? host.slice(4) : host;
+  } catch {
+    return '';
+  }
+}
+
+/** A domain a person typed: strips scheme, path and www. Returns '' when it isn't one. */
+export function normalizeDomain(raw: string): string {
+  const value = raw.trim().toLowerCase();
+  if (!value) return '';
+  const host = domainOf(value.includes('://') ? value : `https://${value}`);
+  return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host) ? host : '';
+}
+
+/** Only real http(s) URLs, no Google redirect wrappers, de-duplicated, capped. */
+export function cleanUrls(raw: unknown, cap: number): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  for (const value of raw) {
+    if (typeof value !== 'string') continue;
+    let url: URL;
+    try {
+      url = new URL(value.trim());
+    } catch {
+      continue;
+    }
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') continue;
+    if (/(^|\.)vertexaisearch\.cloud\.google\.com$|(^|\.)google\.[a-z.]+$/.test(url.hostname) && url.pathname.includes('redirect')) continue;
+    url.hash = '';
+    const clean = url.toString();
+    if (!out.includes(clean)) out.push(clean);
+    if (out.length >= cap) break;
+  }
+  return out;
+}
+
+/**
+ * A scout's answers, checked by code: only questions we asked, only real URLs, and a cited
+ * page must be one the search actually returned. A model that "cites" a page it never saw
+ * has invented it.
+ */
+export function acceptAnswers(engine: Engine, asked: string[], raw: unknown): { answers: Answer[]; dropped: number } {
+  const rows = Array.isArray(raw) ? raw : [];
+  const byQuery = new Map<string, Answer>();
+  let dropped = 0;
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') continue;
+    const r = row as Record<string, unknown>;
+    const query = asked.find((q) => q.toLowerCase() === String(r.query ?? '').trim().toLowerCase());
+    if (!query || byQuery.has(query)) continue;
+    const seen = cleanUrls(r.seen, 40);
+    const citedRaw = cleanUrls(r.cited, 12);
+    const seenSet = new Set(seen);
+    const cited = citedRaw.filter((u) => seenSet.has(u));
+    dropped += citedRaw.length - cited.length;
+    byQuery.set(query, { engine, query, cited, seen });
+  }
+  return { answers: asked.filter((q) => byQuery.has(q)).map((q) => byQuery.get(q)!), dropped };
+}
+
+/** Citations per domain: how many answers cited it (any page), by engine, and which pages. */
+export function tally(answers: Answer[]): (BoardRow & { pages: string[]; queries: string[] })[] {
+  const stats = new Map<string, BoardRow & { pages: string[]; queries: string[] }>();
+  for (const answer of answers) {
+    const domains = new Set<string>();
+    for (const url of answer.cited) {
+      const d = domainOf(url);
+      if (!d) continue;
+      const row = stats.get(d) ?? { domain: d, answers: 0, citations: 0, byEngine: {}, publisher: null, pages: [], queries: [] };
+      row.citations += 1;
+      if (!row.pages.includes(url)) row.pages.push(url);
+      stats.set(d, row);
+      domains.add(d);
+    }
+    for (const d of domains) {
+      const row = stats.get(d)!;
+      row.answers += 1;
+      row.byEngine[answer.engine] = (row.byEngine[answer.engine] ?? 0) + 1;
+      if (!row.queries.includes(answer.query)) row.queries.push(answer.query);
+    }
+  }
+  return [...stats.values()].sort((a, b) => b.answers - a.answers || b.citations - a.citations || a.domain.localeCompare(b.domain));
+}
+
+export const listedNonPublisher = (domain: string): boolean => NOT_PUBLISHERS.some((m) => domain.includes(m));
+
+export function isPublisher(domain: string, facts: SiteFacts | null): boolean {
+  if (listedNonPublisher(domain)) return false;
+  if (!facts) return true;
+  // Unreachable sites stay in for a person to check; reachable ones need a sign they sell ads or affiliate.
+  return !facts.reachable || Boolean(facts.adsTxtLines) || Boolean(facts.affiliate);
+}
+
+/** 60 points for answer share, 15 for ads.txt, 15 for affiliate links, 10 for an edge CDN. */
+export function score(answers: number, total: number, facts: SiteFacts | null): number {
+  let points = total ? (60 * answers) / total : 0;
+  if (facts?.adsTxtLines) points += 15;
+  if (facts?.affiliate) points += 15;
+  if (facts && EDGE_CDNS.includes(facts.cdn)) points += 10;
+  return Math.round(points);
+}
+
+export function cdnFromHeaders(get: (name: string) => string | null): string {
+  if (get('cf-ray')) return 'Cloudflare';
+  const via = (get('via') ?? '').toLowerCase();
+  if (get('x-fastly-request-id') || via.includes('fastly') || (get('x-served-by') ?? '').startsWith('cache-')) return 'Fastly';
+  if (get('x-amz-cf-id')) return 'CloudFront';
+  if (get('x-akamai-request-id') || (get('server') ?? '').toLowerCase().includes('akamai')) return 'Akamai';
+  return get('server') || 'unknown';
+}
+
+export function countAdsTxt(text: string): number {
+  return text.split(/\r?\n/).filter((line) => line.includes(',') && !line.trimStart().startsWith('#')).length;
+}
+
+export const hasAffiliate = (html: string): boolean => {
+  const body = html.toLowerCase();
+  return AFFILIATE_MARKERS.some((m) => body.includes(m));
+};
+
+/**
+ * Can `agent` fetch "/"? Groups are matched the way crawlers do: the most specific user-agent
+ * group wins, otherwise `*`. Within a group the longest matching rule wins, Allow on a tie.
+ */
+export function robotsAllows(robots: string, agent: string): boolean {
+  const groups: { agents: string[]; rules: { allow: boolean; path: string }[] }[] = [];
+  let current: (typeof groups)[number] | null = null;
+  let lastWasAgent = false;
+  for (const rawLine of robots.split(/\r?\n/)) {
+    const line = rawLine.replace(/#.*$/, '').trim();
+    const sep = line.indexOf(':');
+    if (sep < 0) continue;
+    const key = line.slice(0, sep).trim().toLowerCase();
+    const value = line.slice(sep + 1).trim();
+    if (key === 'user-agent') {
+      if (!current || !lastWasAgent) {
+        current = { agents: [], rules: [] };
+        groups.push(current);
+      }
+      current.agents.push(value.toLowerCase());
+      lastWasAgent = true;
+    } else if ((key === 'allow' || key === 'disallow') && current) {
+      lastWasAgent = false;
+      if (key === 'disallow' && !value) continue;
+      current.rules.push({ allow: key === 'allow', path: value });
+    } else {
+      lastWasAgent = false;
+    }
+  }
+  const name = agent.toLowerCase();
+  const specific = groups.filter((g) => g.agents.some((a) => a !== '*' && name.includes(a)));
+  const chosen = specific.length ? specific : groups.filter((g) => g.agents.includes('*'));
+  const rules = chosen.flatMap((g) => g.rules);
+  let best: { allow: boolean; path: string } | null = null;
+  for (const rule of rules) {
+    const path = rule.path.replace(/\*$/, '').replace(/\$$/, '');
+    if (!'/'.startsWith(path) && path !== '/') continue;
+    if (!best || path.length > best.path.length || (path.length === best.path.length && rule.allow)) best = { ...rule, path };
+  }
+  return best ? best.allow : true;
+}
+
+export function robotsReport(robots: string): Record<string, boolean> {
+  return Object.fromEntries(Object.keys(AI_AGENTS).map((agent) => [agent, robotsAllows(robots, agent)]));
+}
+
+/** Visible text of an HTML page, lowercased, whitespace collapsed. For the name check. */
+export function pageText(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;|&#160;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&#39;|&rsquo;|&apos;/gi, "'")
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
+/**
+ * Does the page show this person's full name? Accents and case are ignored, and a
+ * middle name in between is tolerated. "Kate" alone, or a name inside an email address, is not.
+ */
+export function nameOnPage(name: string, text: string): boolean {
+  const parts = name
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((p) => p.length > 1);
+  if (parts.length < 2) return false;
+  const first = parts[0].replace(/[^a-z'-]/g, '');
+  const last = parts[parts.length - 1].replace(/[^a-z'-]/g, '');
+  const re = new RegExp(`(^|[^a-z@.])${first}(\\s+[a-z.'-]+){0,2}\\s+${last}([^a-z@]|$)`);
+  return re.test(text);
+}
+
+export interface DraftInput {
+  domain: string;
+  vertical: Vertical;
+  answers: number;
+  total: number;
+  questions: number;
+  engines: Engine[];
+  rivals: { domain: string; answers: number }[];
+  pages: string[];
+  robots: Record<string, boolean>;
+  contactRole: string | null;
+  contactName: string | null;
+  reportUrl: string;
+}
+
+/**
+ * The first email, built from counted facts only, so no number in it can be made up.
+ * Under 120 words, opens with their number, asks them to look at the report, not for a call.
+ */
+export function draftEmail(input: DraftInput): string {
+  const label = VERTICAL_LABEL[input.vertical].toLowerCase();
+  const engines = input.engines.map((e) => ENGINE_LABEL[e]).join(' and ');
+  const greeting = input.contactName ? `Hi ${input.contactName.split(/\s+/)[0]},` : 'Hi,';
+  const blocked = ['ChatGPT-User', 'Perplexity-User', 'Claude-User'].filter((a) => input.robots[a] === false);
+  const rivals = input.rivals.slice(0, 3).map((r) => `${r.domain} (${r.answers})`).join(', ');
+  const lines = [
+    `Subject: ${input.domain} was cited in ${input.answers} of ${input.total} AI answers on ${label}`,
+    '',
+    greeting,
+    '',
+    `We asked ${engines} ${input.questions} buying questions UK shoppers ask about ${label}. ${input.answers} of the ${input.total} answers cited ${input.domain}.`,
+    rivals ? `The sites cited most in the same answers: ${rivals}.` : '',
+    input.pages[0] ? `One page they leaned on: ${input.pages[0]}` : '',
+    blocked.length ? `Your robots.txt blocks ${blocked.join(', ')}, so those answers are built from other sites.` : '',
+    '',
+    `Each of those citations is an AI agent reading your page for someone about to buy, and it doesn't show in your analytics. Blankspace shows you that traffic and can earn from it without changing what readers see.`,
+    '',
+    `Your free report: ${input.reportUrl}`,
+    '',
+    'Alex',
+    '',
+    'Not the right person? Reply and I won’t write again.',
+  ];
+  return lines.filter((line, i, all) => !(line === '' && all[i - 1] === '')).join('\n');
+}

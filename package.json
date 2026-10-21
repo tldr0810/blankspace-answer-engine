@@ -1,0 +1,50 @@
+{
+  "name": "blankspace-answer-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Live AI Answer Share: which publishers Claude, Gemini and ChatGPT cite for UK buying questions, with checked contacts and first-email drafts.",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "check": "tsc -b && vite build && wrangler deploy --dry-run",
+    "test": "vitest run",
+    "deploy": "wrangler deploy",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "hono": "^4.13.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.51.2",
+    "@cloudflare/workers-types": "^5.20260811.1",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^6.0.5",
+    "typescript": "^5.9.3",
+    "vite": "^8.2.1",
+    "vitest": "^4.1.10",
+    "wrangler": "^4.120.1"
+  },
+  "cloudflare": {
+    "label": "Blankspace Answer Share",
+    "products": [
+      "Workers",
+      "D1",
+      "Durable Objects"
+    ],
+    "bindings": {
+      "DB": {
+        "description": "Runs, AI answers, site checks, leads and connected Manyfold agents (tokens encrypted at rest)."
+      }
+    }
+  }
+}

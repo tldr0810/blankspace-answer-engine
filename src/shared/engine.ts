@@ -1,0 +1,268 @@
+/**
+ * The Answer Share engine's API surface, shared by the Worker and the browser.
+ * Plain data only: no runtime imports from either side.
+ */
+
+export const VERTICALS = ['automotive', 'consumer_tech', 'running', 'b2b_software', 'travel'] as const;
+export type Vertical = (typeof VERTICALS)[number];
+
+export const VERTICAL_LABEL: Record<Vertical, string> = {
+  automotive: 'Automotive',
+  consumer_tech: 'Consumer tech',
+  running: 'Running',
+  b2b_software: 'B2B software',
+  travel: 'Travel',
+};
+
+/** The buying questions each vertical is measured on. Edit to change what the engine asks. */
+export const QUESTIONS: Record<Vertical, string[]> = {
+  automotive: [
+    'best family SUV to buy in 2026',
+    'best electric car under £40,000',
+    'Kia EV3 vs Volvo EX30 which should I buy',
+    'most reliable used cars to buy',
+    'best hybrid car for long motorway commutes',
+    'Tesla Model Y vs Hyundai Ioniq 5',
+    'best small car for new drivers insurance',
+    'best 7 seater car for families',
+    'is leasing or PCP better for a new car',
+    'best electric SUV range for road trips',
+    'best estate car for dog owners',
+    'cheapest cars to run in the UK',
+    'best pickup truck to buy',
+    'best car for towing a caravan',
+    'BMW iX1 vs Audi Q4 e-tron review',
+  ],
+  consumer_tech: [
+    'best TV for gaming 2026',
+    'best noise cancelling headphones',
+    'best laptop for students',
+    'best budget phone with a good camera',
+    'OLED vs mini LED TV which is better',
+    'best robot vacuum for pet hair',
+    'best monitor for working from home',
+    'best wireless earbuds for running',
+    'iPhone vs Pixel which should I buy',
+    'best soundbar under £500',
+    'best smartwatch for fitness tracking',
+    'best gaming headset',
+    'best tablet for drawing',
+    'best mesh wifi system for a large house',
+    'best 4K projector for home cinema',
+  ],
+  running: [
+    'best running shoes for flat feet',
+    'best marathon racing shoes 2026',
+    'best trail running shoes for muddy terrain',
+    'best cushioned running shoes for beginners',
+    'Nike Pegasus vs Brooks Ghost',
+    'best running shoes for overpronation',
+    'best carbon plate running shoes',
+    'best running jacket for rain',
+    'best running watch for marathon training',
+    'best hiking boots for wide feet',
+    'best running shorts with pockets',
+    'best gym shoes for lifting',
+    'best walking shoes for standing all day',
+    'best running socks to prevent blisters',
+    'Hoka Clifton vs Asics Novablast',
+  ],
+  b2b_software: [
+    'best CRM for a small business',
+    'best project management software for agencies',
+    'HubSpot vs Salesforce for a startup',
+    'best accounting software for UK small businesses',
+    'best email marketing software',
+    'best HR software for a 50 person company',
+    'best help desk software',
+    'best password manager for teams',
+    'Notion vs Confluence for internal docs',
+    'best website builder for small business',
+    'best payroll software UK',
+    'best video conferencing software for business',
+    'best e-signature software',
+    'best VPN for business',
+    'best customer data platform for ecommerce',
+  ],
+  travel: [
+    'best travel credit card for airport lounges',
+    'best things to do in Lisbon',
+    'best all inclusive resorts in the Caribbean',
+    'best carry on luggage',
+    'how to get airline upgrades with points',
+    'best time to visit Japan',
+    'best hotels in Barcelona for families',
+    'best travel insurance for frequent travellers',
+    'best Avios redemptions',
+    'best Greek islands for couples',
+    'best ski resorts in Europe for beginners',
+    'best travel backpack',
+    'is premium economy worth it on long haul',
+    'best city break destinations in Europe',
+    'best cruise lines for families',
+  ],
+};
+
+/** The engines a run can ask. Each is a connected Manyfold agent with live web search. */
+export const ENGINES = ['claude', 'gemini', 'gpt'] as const;
+export type Engine = (typeof ENGINES)[number];
+export const ENGINE_LABEL: Record<Engine, string> = { claude: 'Claude', gemini: 'Gemini', gpt: 'ChatGPT' };
+
+export const ROLES = ['scout_claude', 'scout_gemini', 'scout_gpt', 'profiler'] as const;
+export type Role = (typeof ROLES)[number];
+export const ROLE_LABEL: Record<Role, string> = {
+  scout_claude: 'Claude scout',
+  scout_gemini: 'Gemini scout',
+  scout_gpt: 'ChatGPT scout',
+  profiler: 'Profiler',
+};
+export const ROLE_HELP: Record<Role, string> = {
+  scout_claude: 'A Claude agent with web search. Answers the buying questions and lists the pages it relied on.',
+  scout_gemini: 'A Gemini agent with Google search. Same job, second engine, so share is not one model’s taste.',
+  scout_gpt: 'Optional. An OpenAI agent with live web search.',
+  profiler: 'Researches who owns each site and who to talk to. Its names are checked by code before you see them.',
+};
+export const scoutRole = (engine: Engine): Role => `scout_${engine}` as Role;
+
+export type RunKind = 'vertical' | 'site' | 'question';
+export type RunStatus = 'running' | 'done' | 'failed';
+
+/** The steps a run walks through, in order. A question run stops after `enrich`. */
+export const STEPS = ['ask', 'score', 'enrich', 'profile', 'verify', 'draft'] as const;
+export type Step = (typeof STEPS)[number] | 'done';
+export const STEP_LABEL: Record<(typeof STEPS)[number], string> = {
+  ask: 'Ask the AI engines',
+  score: 'Count citations',
+  enrich: 'Check ads.txt, affiliate links, CDN, robots.txt',
+  profile: 'Find owner and contact',
+  verify: 'Fact-check contact on its source page',
+  draft: 'Draft first email',
+};
+
+export interface Run {
+  id: string;
+  kind: RunKind;
+  vertical: Vertical | null;
+  domain: string | null;
+  questions: string[];
+  engines: Engine[];
+  status: RunStatus;
+  step: Step;
+  stepDetail: string | null;
+  seed: boolean;
+  startedAt: string;
+  finishedAt: string | null;
+  error: string | null;
+}
+
+export interface RunEvent {
+  id: number;
+  runId: string;
+  text: string;
+  createdAt: string;
+}
+
+/** One site's checks, run by code from the Worker. */
+export interface SiteFacts {
+  domain: string;
+  reachable: boolean;
+  cdn: string;
+  affiliate: boolean | null;
+  adsTxtLines: number | null;
+  /** agent name → allowed at "/" */
+  robots: Record<string, boolean>;
+  checkedAt: string;
+}
+
+/** A site in a leaderboard: how many answers per engine cited it. */
+export interface BoardRow {
+  domain: string;
+  answers: number;
+  citations: number;
+  byEngine: Partial<Record<Engine, number>>;
+  publisher: boolean | null;
+}
+
+export type Verdict = 'verified' | 'not_found' | 'fetch_blocked' | 'no_person' | 'pending';
+
+export interface Lead {
+  id: string;
+  runId: string;
+  vertical: Vertical;
+  domain: string;
+  score: number;
+  answers: number;
+  total: number;
+  citations: number;
+  pages: string[];
+  queries: string[];
+  facts: SiteFacts | null;
+  owner: string | null;
+  companyType: string | null;
+  monetisation: string | null;
+  aiDeal: string | null;
+  contactRole: string | null;
+  contactName: string | null;
+  contactSourceUrl: string | null;
+  why: string | null;
+  verdict: Verdict;
+  verifyNote: string | null;
+  email: string | null;
+  status: 'draft' | 'approved' | 'skipped';
+}
+
+export interface VerticalBoard {
+  vertical: Vertical;
+  runId: string;
+  runAt: string;
+  seed: boolean;
+  total: number;
+  engines: Engine[];
+  questions: number;
+  rows: BoardRow[];
+}
+
+export interface EngineState {
+  roles: Partial<Record<Role, string>>;
+  engines: Engine[];
+  canProfile: boolean;
+  runs: Run[];
+  boards: VerticalBoard[];
+  limits: { runsToday: number; dailyLimit: number; active: number };
+}
+
+export interface RunDetail {
+  run: Run;
+  events: RunEvent[];
+  board: BoardRow[];
+  total: number;
+  leads: Lead[];
+  calls: { role: string; label: string; state: string; error: string | null }[];
+}
+
+/** A site's report: the hook a publisher would receive. */
+export interface SiteReport {
+  domain: string;
+  vertical: Vertical;
+  runId: string;
+  runAt: string;
+  total: number;
+  engines: Engine[];
+  rank: number | null;
+  row: BoardRow | null;
+  board: BoardRow[];
+  pages: string[];
+  queries: string[];
+  facts: SiteFacts | null;
+  lead: Lead | null;
+}
+
+/** AI agents whose robots.txt rules matter. Live fetchers are the traffic Blankspace monetises. */
+export const AI_AGENTS: Record<string, string> = {
+  'ChatGPT-User': 'live answers',
+  'Perplexity-User': 'live answers',
+  'Claude-User': 'live answers',
+  'OAI-SearchBot': 'search index',
+  PerplexityBot: 'search index',
+  GPTBot: 'model training',
+};
