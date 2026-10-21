@@ -184,11 +184,23 @@ CREATE TABLE IF NOT EXISTS events (
   created_at TEXT NOT NULL
 );
 
+-- Code's last check of one cited page: does it load and cover the question it was cited for.
+-- verdict: ok | off_topic | dead | blocked. Dead and off-topic pages drop out of every count.
+CREATE TABLE IF NOT EXISTS page_checks (
+  url        TEXT PRIMARY KEY,
+  domain     TEXT NOT NULL,
+  status     INTEGER,
+  verdict    TEXT NOT NULL,
+  note       TEXT,
+  checked_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_answers_run ON answers (run_id);
 CREATE INDEX IF NOT EXISTS idx_leads_run ON leads (run_id);
 CREATE INDEX IF NOT EXISTS idx_events_run ON events (run_id, id);
 CREATE INDEX IF NOT EXISTS idx_calls_run ON agent_calls (run_id);
 CREATE INDEX IF NOT EXISTS idx_runs_started ON runs (started_at);
+CREATE INDEX IF NOT EXISTS idx_page_checks_age ON page_checks (checked_at);
 `;
 
 /**

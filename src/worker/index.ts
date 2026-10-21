@@ -33,6 +33,7 @@ import {
   verifyAgent,
 } from './connect';
 import { engineRoutes, rearmRuns } from './engine/routes';
+import { sweepSources } from './engine/sources';
 
 export { RunTicker } from './engine/ticker';
 
@@ -48,9 +49,11 @@ app.use('/api/*', async (c, next) => {
 });
 
 // Same-origin check on every mutation: browsers always send Origin on cross-site
-// POSTs, so this shuts down CSRF without cookies or tokens.
+// POSTs, so this shuts down CSRF without cookies or tokens. The autopilot ping is exempt:
+// a scheduled agent calls it with curl, and it can only start the run that is already due.
 app.use('/api/*', async (c, next) => {
-  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(c.req.method)) {
+  const autopilotPing = c.req.method === 'POST' && new URL(c.req.url).pathname === '/api/engine/autopilot';
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(c.req.method) && !autopilotPing) {
     const origin = c.req.header('origin');
     if (!origin) {
       throw new HttpError(403, 'origin_required', 'Mutation requests must include a same-origin Origin header.');
@@ -168,5 +171,6 @@ export default {
   async scheduled(_controller: ScheduledController, env: Env) {
     await ensureSchema(env.DB);
     await rearmRuns(env);
+    await sweepSources(env);
   },
 } satisfies ExportedHandler<Env>;

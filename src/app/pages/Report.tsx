@@ -1,9 +1,9 @@
 /** The hook: the page a publisher receives. Their AI answer share, the pages AI read, who else gets cited. */
 
 import { useEffect, useState } from 'react';
-import { AI_AGENTS, ENGINE_LABEL, VERTICAL_LABEL, type SiteReport } from '../../shared/engine';
+import { AI_AGENTS, ENGINE_LABEL, VERTICAL_LABEL, type PageVerdict, type SiteReport } from '../../shared/engine';
 import { api } from '../api';
-import { EngineBar, EngineTag, VerdictTag } from '../ui';
+import { EngineBar, EngineTag, PageSkeleton, SourceMark, VerdictTag } from '../ui';
 
 export default function Report(props: { runId: string; domain: string }) {
   const [report, setReport] = useState<SiteReport | null>(null);
@@ -17,7 +17,7 @@ export default function Report(props: { runId: string; domain: string }) {
   }, [props.runId, props.domain]);
 
   if (error) return <div className="notice error">{error}</div>;
-  if (!report) return <p className="muted">Loading…</p>;
+  if (!report) return <PageSkeleton kind="report" label="Loading the report" />;
   const label = VERTICAL_LABEL[report.vertical].toLowerCase();
   const answers = report.row?.answers ?? 0;
   const share = report.total ? Math.round((answers / report.total) * 100) : 0;
@@ -69,7 +69,10 @@ export default function Report(props: { runId: string; domain: string }) {
           <ol className="board">
             {report.board.map((r) => (
               <li key={r.domain} className={r.domain === report.domain ? 'you' : ''}>
-                <span className="d">{r.domain}</span>
+                <span className="d">
+                  {r.domain}
+                  <SourceMark verified={r.verified} />
+                </span>
                 <EngineBar byEngine={r.byEngine} engines={report.engines} max={max} />
                 <span className="n">{r.answers}</span>
               </li>
@@ -122,10 +125,11 @@ export default function Report(props: { runId: string; domain: string }) {
           <h2>Your pages AI agents read</h2>
           <ul className="links">
             {report.pages.slice(0, 12).map((u) => (
-              <li key={u}>
+              <li key={u} className="page-check">
                 <a href={u} target="_blank" rel="noreferrer">
                   {u}
                 </a>
+                <PageVerdictTag verdict={report.pageVerdicts[u]} />
               </li>
             ))}
           </ul>
@@ -169,4 +173,11 @@ export default function Report(props: { runId: string; domain: string }) {
       )}
     </article>
   );
+}
+
+function PageVerdictTag({ verdict }: { verdict?: PageVerdict }) {
+  if (verdict === 'ok') return <span className="tag t-eng">Checked: live, on topic</span>;
+  if (verdict === 'blocked') return <span className="tag t-watch">Site blocks checks</span>;
+  if (verdict) return <span className="tag t-err">{verdict === 'dead' ? 'Gone, not counted' : 'Off topic, not counted'}</span>;
+  return <span className="tag t-mute">Not checked yet</span>;
 }

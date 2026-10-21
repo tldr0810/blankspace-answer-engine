@@ -22,7 +22,7 @@ import Leads from './pages/Leads';
 import Report from './pages/Report';
 import RunView from './pages/RunView';
 import Settings from './pages/Settings';
-import { Icon } from './ui';
+import { Icon, PageSkeleton } from './ui';
 
 type Page = 'check' | 'run' | 'board' | 'report' | 'leads' | 'how' | 'settings';
 const NAV: Page[] = ['check', 'board', 'leads', 'how', 'settings'];
@@ -112,7 +112,7 @@ export default function App() {
 
   let body: React.ReactNode;
   if (!app || !engine) {
-    body = loadError ? <div className="notice error">{loadError}</div> : <p className="muted">Loading…</p>;
+    body = loadError ? <div className="notice error">{loadError}</div> : <PageSkeleton kind={page === 'board' ? 'board' : page === 'leads' ? 'leads' : page === 'run' ? 'run' : page === 'report' ? 'report' : 'page'} />;
   } else if (page === 'run' && route.runId) {
     body = <RunView runId={route.runId} admin={admin} onChange={refresh} />;
   } else if (page === 'report' && route.runId && route.domain) {

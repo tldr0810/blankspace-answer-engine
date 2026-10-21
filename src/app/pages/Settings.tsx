@@ -1,16 +1,18 @@
 /** Owner only: connect Manyfold agents and decide which one plays which role. */
 
 import { useState } from 'react';
-import { ROLES, ROLE_HELP, ROLE_LABEL, type EngineState, type Role } from '../../shared/engine';
+import { AUTOPILOT_MIN_GAP_HOURS, ROLES, ROLE_HELP, ROLE_LABEL, VERTICAL_LABEL, type EngineState, type Role } from '../../shared/engine';
 import type { AppState } from '../../shared/types';
 import { api, ApiError } from '../api';
 import ConnectPanel from '../components/ConnectPanel';
-import { Picker } from '../ui';
+import { ago, Picker } from '../ui';
 
 export default function Settings(props: { app: AppState; engine: EngineState; onChange: () => Promise<void> }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const agents = props.app.agents;
+  const autopilot = props.engine.autopilot;
+  const automationPrompt = `Run this command once and reply with its output, nothing else:\ncurl -sS -X POST ${location.origin}/api/engine/autopilot`;
 
   const act = async (key: string, fn: () => Promise<unknown>) => {
     setBusy(key);
@@ -68,6 +70,54 @@ export default function Settings(props: { app: AppState; engine: EngineState; on
               <span className="last" />
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="panel autopilot">
+        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <h2>Autopilot</h2>
+            <p className="muted">
+              A Manyfold automation calls this app on its schedule. Each call refreshes the next vertical in rotation, at most once every{' '}
+              {AUTOPILOT_MIN_GAP_HOURS} hours and never while one is still running, so extra calls cost nothing.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="switch"
+            aria-pressed={autopilot.enabled}
+            disabled={busy === 'autopilot'}
+            onClick={() => void act('autopilot', () => api('/api/engine/autopilot', { method: 'PUT', body: JSON.stringify({ enabled: !autopilot.enabled }) }))}
+          >
+            <span className="knob">
+              <i />
+            </span>
+            {autopilot.enabled ? 'On' : 'Paused'}
+          </button>
+        </div>
+        <ul className="facts">
+          <li>
+            Next vertical: <b>{VERTICAL_LABEL[autopilot.nextVertical]}</b>
+          </li>
+          <li>
+            Last automatic run:{' '}
+            {autopilot.lastRunId ? (
+              <a href={`#run/${autopilot.lastRunId}`}>{ago(autopilot.lastAt)}</a>
+            ) : (
+              'none yet'
+            )}
+          </li>
+          <li>
+            Sources checked by code: {props.engine.sources.ok} live and on topic, {props.engine.sources.dropped} dropped (gone or off topic),{' '}
+            {props.engine.sources.blocked} on sites that block checks. Every cited page is checked again after 7 days.
+          </li>
+        </ul>
+        <div className="automation">
+          <span className="eyebrow">The Manyfold automation</span>
+          <p className="small muted">
+            Agent <b>blankspace-gtm</b>, schedule every 6 hours (<code>FREQ=HOURLY;INTERVAL=6</code>), prompt:
+          </p>
+          <pre className="prompt">{automationPrompt}</pre>
         </div>
       </section>
 

@@ -38,6 +38,7 @@ import {
   insertAnswers,
   insertLead,
   loadState,
+  pagesToCheck,
   patchLead,
   roleMap,
   runLeads,
@@ -46,12 +47,14 @@ import {
   siteFacts,
   updateRun,
 } from './store';
+import { checkPages, staleBefore } from './sources';
 import { extractJson, getTask, problemText, submitTask } from './tasks';
 
 const LEADS_PER_VERTICAL = 5;
 const SITE_QUESTIONS = 5;
 const ENRICH_PER_TICK = 3;
 const VERIFY_PER_TICK = 3;
+const PAGES_PER_TICK = 10;
 /** About 45 minutes of polling before a turn is given up on. */
 const MAX_POLLS = 80;
 const TERMINAL = ['completed', 'failed', 'canceled', 'rejected', 'input-required', 'auth-required'];
@@ -69,6 +72,8 @@ interface CallState {
 
 interface Bag {
   calls: Partial<Record<Role, CallState>>;
+  /** Cited pages this run opened, by outcome. */
+  pages?: { ok: number; dropped: number; blocked: number };
   candidates: string[];
   enriched: number;
   verified: number;
@@ -214,6 +219,31 @@ async function stepAsk(env: Env, run: Run, bag: Bag): Promise<StepResult> {
 }
 
 async function stepScore(env: Env, run: Run, bag: Bag): Promise<StepResult> {
+  // Open every cited page first, a few per tick: dead or off-topic pages must not count.
+  const due = await pagesToCheck(env, { runId: run.id, staleBefore: staleBefore(), limit: PAGES_PER_TICK });
+  if (due.length) {
+    const results = await checkPages(env, due);
+    bag.pages = (bag.pages ?? { ok: 0, dropped: 0, blocked: 0 });
+    for (const r of results) {
+      if (r.verdict === 'ok') bag.pages.ok += 1;
+      else if (r.verdict === 'blocked') bag.pages.blocked += 1;
+      else bag.pages.dropped += 1;
+    }
+    const done = bag.pages.ok + bag.pages.blocked + bag.pages.dropped;
+    await updateRun(env, run.id, { stepDetail: `${done} cited pages opened` });
+    return { wait: 300 };
+  }
+  if (bag.pages) {
+    const { ok, dropped, blocked } = bag.pages;
+    await addEvent(
+      env,
+      run.id,
+      `Opened ${ok + dropped + blocked} cited pages: ${ok} live and on topic` +
+        (dropped ? `, ${dropped} dead or off topic (left out of the counts)` : '') +
+        (blocked ? `, ${blocked} on sites that block checks (kept, marked unchecked)` : '') +
+        '.',
+    );
+  }
   const { rows, total } = await boardFor(env, run.id);
   if (run.kind === 'site') {
     bag.candidates = [run.domain!];

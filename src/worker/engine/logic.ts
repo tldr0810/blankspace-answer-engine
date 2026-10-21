@@ -6,7 +6,7 @@
  * contacts. Code decides what a citation is, who ranks where, and whether a name stands.
  */
 
-import { AI_AGENTS, ENGINE_LABEL, VERTICAL_LABEL, type BoardRow, type Engine, type SiteFacts, type Vertical } from '../../shared/engine';
+import { AI_AGENTS, DROPPED_VERDICTS, ENGINE_LABEL, VERTICAL_LABEL, type BoardRow, type Engine, type PageVerdict, type SiteFacts, type Vertical } from '../../shared/engine';
 
 /** Cited often, but not ad- or affiliate-funded publishers. */
 export const NOT_PUBLISHERS = [
@@ -231,6 +231,80 @@ export function nameOnPage(name: string, text: string): boolean {
   const last = parts[parts.length - 1].replace(/[^a-z'-]/g, '');
   const re = new RegExp(`(^|[^a-z@.])${first}(\\s+[a-z.'-]+){0,2}\\s+${last}([^a-z@]|$)`);
   return re.test(text);
+}
+
+const QUERY_STOPWORDS = new Set([
+  'best', 'top', 'under', 'over', 'for', 'the', 'and', 'with', 'which', 'what', 'how', 'should', 'good', 'cheap', 'cheapest',
+  'most', 'worth', 'buy', 'buying', 'right', 'now', 'this', 'year', 'from', 'that', 'are', 'can', 'get', 'you', 'your', 'need',
+  'between', 'compared', 'versus', 'review', 'reviews', 'budget', 'money', 'value',
+]);
+
+/** The words a page about this question has to use. Short words, numbers and filler drop out. */
+export function queryKeywords(query: string): string[] {
+  const words = query
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length >= 3 && !/^\d+$/.test(w) && !QUERY_STOPWORDS.has(w) && w !== 'uk');
+  return [...new Set(words)];
+}
+
+/**
+ * Does the page cover at least one of the questions it was cited for? Half of a question's
+ * keywords must appear (a keyword matches on its first five letters, so "headphones" also
+ * finds "headphone"). A question with no keywords left counts as covered.
+ */
+export function pageCovers(text: string, queries: string[]): boolean {
+  if (!queries.length) return true;
+  return queries.some((query) => {
+    const keywords = queryKeywords(query);
+    if (!keywords.length) return true;
+    const hits = keywords.filter((k) => new RegExp(`(^|[^a-z0-9])${k.slice(0, 5)}`).test(text)).length;
+    return hits >= Math.ceil(keywords.length / 2);
+  });
+}
+
+export interface PageFetch {
+  status: number;
+  /** The URL after redirects. */
+  finalUrl: string;
+  text: string;
+}
+
+/**
+ * Code's verdict on one cited page. null fetch = no answer in time. A deep link that lands on
+ * the home page is a soft 404. 401, 403, 429 and 5xx mean the site refused us, not that the page
+ * is gone, so those stay in as unchecked rather than being dropped.
+ */
+export function judgePage(url: string, fetched: PageFetch | null, queries: string[]): { verdict: PageVerdict; note: string } {
+  if (!fetched) return { verdict: 'blocked', note: 'No answer in time.' };
+  const { status } = fetched;
+  if (status === 401 || status === 403 || status === 429 || status >= 500) return { verdict: 'blocked', note: `HTTP ${status}: the site refused our check.` };
+  if (status >= 400) return { verdict: 'dead', note: `HTTP ${status}.` };
+  try {
+    const asked = new URL(url);
+    const landed = new URL(fetched.finalUrl || url);
+    if (asked.pathname.length > 1 && landed.pathname === '/' && !landed.search) return { verdict: 'dead', note: 'Redirects to the home page.' };
+  } catch {
+    /* keep going on the text */
+  }
+  const text = pageText(fetched.text);
+  if (text.length < 200 && /captcha|access denied|enable javascript|just a moment/.test(text)) return { verdict: 'blocked', note: 'A bot check stood in front of the page.' };
+  if (!pageCovers(text, queries)) return { verdict: 'off_topic', note: 'The page loads but does not cover the question it was cited for.' };
+  return { verdict: 'ok', note: 'Loads and covers the question.' };
+}
+
+/** Answers with dropped pages (dead or off topic) taken out. An answer left with none still counts toward the total. */
+export function withoutDropped(answers: Answer[], verdicts: Map<string, PageVerdict>): Answer[] {
+  return answers.map((a) => ({ ...a, cited: a.cited.filter((u) => !DROPPED_VERDICTS.includes(verdicts.get(u) as PageVerdict)) }));
+}
+
+/** true when one of the site's cited pages checked out, false when every check was blocked, null before any check. */
+export function siteVerified(pages: string[], verdicts: Map<string, PageVerdict>): boolean | null {
+  const seen = pages.map((u) => verdicts.get(u)).filter(Boolean);
+  if (!seen.length) return null;
+  return seen.includes('ok') ? true : false;
 }
 
 export interface DraftInput {
