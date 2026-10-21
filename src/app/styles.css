@@ -231,7 +231,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1.5px solid var(--ink);
 .x { border: none; background: none; color: var(--ink3); padding: 0 6px; min-height: 28px; font-size: 18px; line-height: 1; }
 .x:hover:not(:disabled) { color: var(--ink); background: none; }
 .addnote { display: flex; gap: 8px; margin-top: 12px; }
-input[type='text'], input[type='password'], select { flex: 1; min-width: 0; font: inherit; min-height: 44px; padding: 0 12px; border: 1.5px solid var(--ink); border-radius: 12px; background: var(--card); color: var(--ink); }
+input[type='text'], input[type='password'] { flex: 1; min-width: 0; font: inherit; min-height: 44px; padding: 0 12px; border: 1.5px solid var(--ink); border-radius: 12px; background: var(--card); color: var(--ink); }
 .err { font-size: 13px; color: var(--err); margin: 6px 0 0; }
 .badge { font-size: 11px; font-weight: 700; color: #524b40; background: var(--soft); border-radius: 999px; padding: 1px 7px; margin-left: 8px; }
 .badge.ok { color: var(--eng); background: var(--eng-bg); }
@@ -489,7 +489,7 @@ input[type='text'], input[type='password'], select { flex: 1; min-width: 0; font
   .q .pill { display: none; }
   .stats { flex-wrap: wrap; }
 }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
 
 /* ── phones: page by page ── */
 .pane-tabs { display: none; }
@@ -710,7 +710,7 @@ input[type='checkbox']:checked::after { scale: 1; }
 .check { display: flex; flex-direction: column; gap: 14px; }
 .check-row { display: grid; grid-template-columns: minmax(0, 1fr) 190px auto; gap: 10px; }
 .check-row input { font-size: 16px; min-height: 52px; }
-.check-row select { min-height: 52px; }
+.check-row .picker-btn { min-height: 52px; font-size: 15px; }
 .check-row button { min-height: 52px; padding: 0 26px; font-size: 16px; }
 .check-foot, .check-meta { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
 .check-meta { border-top: 1.5px dashed var(--hair); padding-top: 12px; }
@@ -775,4 +775,53 @@ input[type='checkbox']:checked::after { scale: 1; }
   .board.big li { grid-template-columns: 22px minmax(0, 130px) minmax(0, 1fr) 46px; padding: 10px 14px; }
   .leadrow { grid-template-columns: 12px 32px minmax(0, 1fr) 150px; }
   .leadrow .s { display: none; }
+}
+
+/* ── Picker: the app's own dropdown, no native select menu ── */
+.picker-btn { min-height: 44px; transition: background-color 0.15s, box-shadow 0.15s, translate 0.15s; }
+.picker-btn:hover:not(:disabled) { background: var(--card); box-shadow: var(--shadow-sm); translate: -1px -1px; }
+.picker.open .picker-btn { box-shadow: var(--shadow-sm); translate: -1px -1px; background: var(--card); }
+.picker-btn .picker-chev { width: 14px; height: 14px; margin-left: auto; color: var(--ink3); transition: rotate 0.2s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.picker.open .picker-chev { rotate: 180deg; color: var(--ink); }
+.picker-dot { transition: background-color 0.2s, scale 0.2s; }
+.picker-menu { max-height: 280px; overflow-y: auto; transform-origin: top center; animation: menu-in 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+.picker-menu li { transition: background-color 0.12s, color 0.12s; animation: item-in 0.22s ease-out both; animation-delay: calc(var(--i, 0) * 18ms); }
+.picker-menu .check { display: inline-flex; flex: 0 0 14px; }
+.picker-menu .check .icon { stroke-width: 2.4; }
+@keyframes menu-in { from { opacity: 0; transform: translateY(-6px) scale(0.97); } }
+@keyframes item-in { from { opacity: 0; translate: 0 -3px; } }
+
+/* ── Motion: pages ease in, lists arrive in order, live progress fills ── */
+.page-in { animation: page-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+@keyframes page-in { from { opacity: 0; translate: 0 10px; } }
+.page-in > .stack > * { animation: page-in 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+.page-in > .stack > :nth-child(2) { animation-delay: 40ms; }
+.page-in > .stack > :nth-child(3) { animation-delay: 80ms; }
+.page-in > .stack > :nth-child(n+4) { animation-delay: 120ms; }
+
+.board li { animation: row-in 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: calc(min(var(--i, 0), 14) * 35ms); transition: background-color 0.15s; }
+.board.big li:hover { background: var(--paper); }
+.board .ebar { animation: bar-in 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: calc(min(var(--i, 0), 14) * 35ms + 120ms); }
+@keyframes row-in { from { opacity: 0; translate: -8px 0; } }
+@keyframes bar-in { from { clip-path: inset(0 100% 0 0 round 999px); } to { clip-path: inset(0 0 0 0 round 999px); } }
+
+.feed li { animation: row-in 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.calls .tag, .notice { animation: page-in 0.3s ease-out both; }
+
+.sp .n { transition: background-color 0.3s, border-color 0.3s, color 0.3s, scale 0.3s; }
+.sp.now .n { animation: step-pop 1.6s ease-in-out infinite; }
+@keyframes step-pop { 0%, 100% { box-shadow: 0 0 0 0 rgba(232, 98, 44, 0.45); } 50% { box-shadow: 0 0 0 7px rgba(232, 98, 44, 0); } }
+.conn { position: relative; }
+.conn::after { content: ''; position: absolute; left: 0; right: 0; top: -2px; border-top: 2px solid var(--ink); transform-origin: left; scale: 0 1; transition: scale 0.6s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.conn.done::after { scale: 1 1; }
+
+.leadcard { transition: translate 0.15s, box-shadow 0.15s; }
+.leadcard:hover { translate: -2px -2px; box-shadow: var(--shadow); }
+.nav a { transition: background-color 0.15s, border-color 0.15s, box-shadow 0.2s, translate 0.15s; }
+.nav a:not([aria-current='page']):hover { translate: 2px 0; }
+button:active:not(:disabled):not(.primary), .button:active:not(.primary) { translate: 1px 1px; }
+.tabs button, .seg button { transition: background-color 0.2s, color 0.2s; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
 }

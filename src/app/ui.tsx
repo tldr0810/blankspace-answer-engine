@@ -1,5 +1,6 @@
 /** Small shared pieces: icons, engine colours, verdict tags, relative times. */
 
+import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { ENGINE_LABEL, type Engine, type Lead } from '../shared/engine';
 
 const ICON_PATHS = {
@@ -9,6 +10,7 @@ const ICON_PATHS = {
   chevron: <path d="M6 4l4 4-4 4" />,
   out: <path d="M6.5 3.5h-3v9h9v-3M9.5 3.5h3v3M12.5 3.5L7.5 8.5" />,
   play: <path d="M5 3.5v9l7-4.5z" />,
+  down: <path d="M4 6l4 4 4-4" />,
 };
 
 export function Icon(props: { name: keyof typeof ICON_PATHS; size?: number; className?: string }) {
@@ -72,4 +74,113 @@ export function hostOf(url: string): string {
   } catch {
     return url;
   }
+}
+
+export interface PickerOption {
+  value: string;
+  label: string;
+}
+
+/** A dropdown drawn in the app's own style, in place of the browser's native select menu. */
+export function Picker(props: {
+  value: string;
+  options: PickerOption[];
+  onChange: (value: string) => void;
+  label: string;
+  disabled?: boolean;
+  /** Show a filled dot when a value is set and a dashed one when it is empty (role pickers). */
+  dot?: boolean;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const root = useRef<HTMLDivElement>(null);
+  const listId = useId();
+  const selected = props.options.findIndex((o) => o.value === props.value);
+  const current = props.options[selected];
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: PointerEvent) => {
+      if (!root.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, [open]);
+
+  const show = () => {
+    setActive(Math.max(0, selected));
+    setOpen(true);
+  };
+  const choose = (i: number) => {
+    setOpen(false);
+    const option = props.options[i];
+    if (option && option.value !== props.value) props.onChange(option.value);
+  };
+
+  const onKey = (e: KeyboardEvent) => {
+    const last = props.options.length - 1;
+    if (!open) {
+      if (['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(e.key)) {
+        e.preventDefault();
+        show();
+      }
+      return;
+    }
+    const moves: Record<string, number> = { ArrowDown: Math.min(last, active + 1), ArrowUp: Math.max(0, active - 1), Home: 0, End: last };
+    if (e.key in moves) {
+      e.preventDefault();
+      setActive(moves[e.key]);
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      choose(active);
+    } else if (e.key === 'Escape' || e.key === 'Tab') {
+      setOpen(false);
+    } else if (e.key.length === 1) {
+      const i = props.options.findIndex((o) => o.label.toLowerCase().startsWith(e.key.toLowerCase()));
+      if (i >= 0) setActive(i);
+    }
+  };
+
+  const empty = props.dot && !props.value;
+  return (
+    <div className={`picker ${open ? 'open' : ''} ${props.className ?? ''}`} ref={root}>
+      <button
+        type="button"
+        className={`picker-btn ${empty ? 'empty' : ''}`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={listId}
+        aria-label={props.label}
+        aria-activedescendant={open ? `${listId}-${active}` : undefined}
+        disabled={props.disabled}
+        onClick={() => (open ? setOpen(false) : show())}
+        onKeyDown={onKey}
+      >
+        {props.dot && <i className="picker-dot" />}
+        <span className="picker-val">{current?.label ?? ''}</span>
+        <Icon name="down" className="picker-chev" />
+      </button>
+      {open && (
+        <ul className="picker-menu" role="listbox" id={listId} aria-label={props.label}>
+          {props.options.map((o, i) => (
+            <li
+              key={o.value}
+              id={`${listId}-${i}`}
+              role="option"
+              aria-selected={i === selected}
+              className={i === active ? 'active' : ''}
+              style={{ '--i': i } as CSSProperties}
+              onPointerEnter={() => setActive(i)}
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={() => choose(i)}
+            >
+              <span className="check">{i === selected && <Icon name="check" size={12} />}</span>
+              {o.label}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }

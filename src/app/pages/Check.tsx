@@ -6,7 +6,7 @@
 import { useState } from 'react';
 import { ENGINE_LABEL, VERTICALS, VERTICAL_LABEL, type EngineState, type Run, type Vertical } from '../../shared/engine';
 import { api, ApiError } from '../api';
-import { ago, EngineTag, Icon } from '../ui';
+import { ago, EngineTag, Icon, Picker } from '../ui';
 
 type Mode = 'site' | 'question';
 
@@ -90,13 +90,13 @@ export default function Check(props: { engine: EngineState; admin: boolean; onSt
             aria-label={mode === 'site' ? 'Site' : 'Buying question'}
             autoComplete="off"
           />
-          <select id="check-vertical" value={vertical} onChange={(e) => setVertical(e.target.value as Vertical)} aria-label="Vertical">
-            {VERTICALS.map((v) => (
-              <option key={v} value={v}>
-                {VERTICAL_LABEL[v]}
-              </option>
-            ))}
-          </select>
+          <Picker
+            className="check-vertical"
+            value={vertical}
+            onChange={(value) => setVertical(value as Vertical)}
+            label="Vertical"
+            options={VERTICALS.map((v) => ({ value: v, label: VERTICAL_LABEL[v] }))}
+          />
           <button className="primary" type="submit" disabled={busy || !ready || !text.trim()}>
             <Icon name="play" /> {busy ? 'Starting…' : 'Run'}
           </button>
