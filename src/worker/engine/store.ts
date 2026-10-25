@@ -11,6 +11,7 @@ import {
   type BoardRow,
   type Engine,
   type Lead,
+  type LeadAddress,
   type LeadReview,
   type SiteRule,
   type Role,
@@ -365,9 +366,10 @@ export async function bestLeads(env: Env): Promise<Lead[]> {
 }
 
 async function toLeads(env: Env, rows: LeadRow[]): Promise<Lead[]> {
-  const [facts, reviews, origins] = await Promise.all([
+  const [facts, reviews, addresses, origins] = await Promise.all([
     siteFacts(env, rows.map((r) => r.domain)),
     leadReviews(env, rows.map((r) => r.id)),
+    leadAddresses(env, rows.map((r) => r.id)),
     runOrigins(env, [...new Set(rows.map((r) => r.run_id))]),
   ]);
   return rows.map((r) => ({
@@ -396,6 +398,7 @@ async function toLeads(env: Env, rows: LeadRow[]): Promise<Lead[]> {
     status: r.status,
     review: reviews.get(r.id) ?? null,
     origin: origins.get(r.run_id) ?? 'schedule',
+    address: addresses.get(r.id) ?? null,
   }));
 }
 
@@ -410,6 +413,43 @@ async function runOrigins(env: Env, ids: string[]): Promise<Map<string, RunOrigi
     for (const row of results ?? []) out.set(row.id, originOf(row));
   }
   return out;
+}
+
+async function leadAddresses(env: Env, ids: string[]): Promise<Map<string, LeadAddress>> {
+  const out = new Map<string, LeadAddress>();
+  for (let i = 0; i < ids.length; i += 50) {
+    const chunk = ids.slice(i, i + 50);
+    if (!chunk.length) continue;
+    const { results } = await env.DB.prepare(`SELECT lead_id, data FROM lead_addresses WHERE lead_id IN (${chunk.map(() => '?').join(', ')})`)
+      .bind(...chunk)
+      .all<{ lead_id: string; data: string }>();
+    for (const row of results ?? []) {
+      const address = json<LeadAddress | null>(row.data, null);
+      if (address) out.set(row.lead_id, address);
+    }
+  }
+  return out;
+}
+
+export async function saveAddress(env: Env, leadId: string, address: LeadAddress): Promise<void> {
+  await env.DB.prepare(
+    `INSERT INTO lead_addresses (lead_id, data, checked_at) VALUES (?, ?, ?)
+     ON CONFLICT (lead_id) DO UPDATE SET data = excluded.data, checked_at = excluded.checked_at`,
+  )
+    .bind(leadId, JSON.stringify(address), address.checkedAt)
+    .run();
+}
+
+/** Leads from finished runs the verification layer has not looked for an address on yet, best first. */
+export async function leadsWithoutAddress(env: Env, limit: number): Promise<string[]> {
+  const { results } = await env.DB.prepare(
+    `SELECT l.id FROM leads l JOIN runs r ON r.id = l.run_id
+     WHERE r.status = 'done' AND NOT EXISTS (SELECT 1 FROM lead_addresses a WHERE a.lead_id = l.id)
+     ORDER BY l.score DESC LIMIT ?`,
+  )
+    .bind(limit)
+    .all<{ id: string }>();
+  return (results ?? []).map((r) => r.id);
 }
 
 async function leadReviews(env: Env, ids: string[]): Promise<Map<string, LeadReview>> {
@@ -496,7 +536,7 @@ export async function saveReview(env: Env, leadId: string, review: LeadReview): 
     .run();
 }
 
-export async function insertLead(env: Env, lead: Omit<Lead, 'facts' | 'review' | 'origin'>): Promise<void> {
+export async function insertLead(env: Env, lead: Omit<Lead, 'facts' | 'review' | 'origin' | 'address'>): Promise<void> {
   await env.DB.prepare(
     `INSERT OR REPLACE INTO leads (id, run_id, vertical, domain, score, answers, total, citations, pages, queries, owner, company_type,
        monetisation, ai_deal, contact_role, contact_name, contact_source_url, why, verdict, verify_note, email, status, updated_at)

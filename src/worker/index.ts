@@ -34,6 +34,7 @@ import {
 } from './connect';
 import { engineRoutes, rearmRuns } from './engine/routes';
 import { sweepSources } from './engine/sources';
+import { sweepAddresses } from './engine/runner';
 
 export { RunTicker } from './engine/ticker';
 
@@ -172,5 +173,6 @@ export default {
     await ensureSchema(env.DB);
     await rearmRuns(env);
     await sweepSources(env);
+    await sweepAddresses(env);
   },
 } satisfies ExportedHandler<Env>;

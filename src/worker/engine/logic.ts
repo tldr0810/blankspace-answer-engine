@@ -273,6 +273,80 @@ export function nameOnPage(name: string, text: string): boolean {
   return re.test(text);
 }
 
+/* ───────── published email addresses ───────── */
+
+/** Inboxes that never reach a commercial conversation. */
+const DEAD_INBOXES = /^(no-?reply|do-?not-?reply|privacy|gdpr|dpo|data|legal|abuse|postmaster|webmaster|jobs|careers|recruit\w*|hr|unsubscribe|subscriptions?|billing|accounts|complaints?|support|help|customerservice|returns|orders)$/;
+/** Shared inboxes worth a first commercial email, best first. */
+const INBOX_RANK: RegExp[] = [
+  /partner|commercial|advertis|^ads?$|adsales|sales|business|brand|sponsor|media/,
+  /^(hello|hi|info|contact|enquir|inquir|team|office|mail)/,
+  /editor|editorial|news|press|tips/,
+];
+
+/** The site's own name for matching addresses: example.co.uk → example.co.uk and example. */
+const siteRoot = (domain: string) => domain.replace(/^www\./, '').toLowerCase();
+
+/**
+ * Every email address a page shows: mailto links and plain text, with the common HTML-entity
+ * and "[at]" spellings undone. Asset names like logo@2x.png are not addresses.
+ */
+export function pageEmails(html: string): string[] {
+  const text = html
+    .replace(/&#0*64;|&#x0*40;|&commat;/gi, '@')
+    .replace(/&#0*46;|&#x0*2e;|&period;/gi, '.')
+    .replace(/\s*[[(]\s*at\s*[\])]\s*/gi, '@')
+    .replace(/\s*[[(]\s*dot\s*[\])]\s*/gi, '.')
+    .replace(/%40/g, '@');
+  const found = new Set<string>();
+  for (const m of text.matchAll(/[a-z0-9][a-z0-9._%+-]{0,63}@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}/gi)) {
+    const email = m[0].toLowerCase().replace(/\.+$/, '');
+    if (/\.(png|jpe?g|gif|svg|webp|avif|css|js)$/.test(email)) continue;
+    if (/@(example|sentry|wixpress|domain|email)\./.test(email)) continue;
+    found.add(email);
+  }
+  return [...found];
+}
+
+/** Is this exact address shown on the page? */
+export const emailOnPage = (email: string, html: string): boolean => pageEmails(html).includes(email.trim().toLowerCase());
+
+/**
+ * The best address on the site's own domain for a first commercial email: the named contact's
+ * own address first, then a partnerships or advertising inbox, then a general one. Null when the
+ * site publishes nothing better than support or privacy inboxes.
+ */
+export function pickAddress(emails: string[], domain: string, contactName: string | null): { email: string; kind: 'person' | 'inbox' } | null {
+  const root = siteRoot(domain);
+  const own = emails.filter((e) => {
+    const host = e.split('@')[1];
+    return host === root || host.endsWith(`.${root}`) || root.endsWith(`.${host}`);
+  });
+  const parts = (contactName ?? '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .split(/\s+/)
+    .map((p) => p.replace(/[^a-z]/g, ''))
+    .filter((p) => p.length > 1);
+  if (parts.length >= 2) {
+    const [first, last] = [parts[0], parts[parts.length - 1]];
+    const person = own.find((e) => {
+      const local = e.split('@')[0];
+      return local.includes(last) || local === first || local === `${first[0]}${last}`;
+    });
+    if (person) return { email: person, kind: 'person' };
+  }
+  for (const rank of INBOX_RANK) {
+    const inbox = own.find((e) => {
+      const local = e.split('@')[0];
+      return !DEAD_INBOXES.test(local) && rank.test(local);
+    });
+    if (inbox) return { email: inbox, kind: 'inbox' };
+  }
+  return null;
+}
+
 /** Text for a word-for-word comparison: page text rules, plus curly quotes and dashes made plain. */
 const plainText = (text: string) =>
   pageText(text)

@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { EDGE_CDNS, ORIGIN_LABEL, PERSON_CALL_LABEL, PERSON_CALLS, REVIEW_CHECK_LABEL, scoreParts, VERTICAL_LABEL, type EngineState, type Lead, type LeadReview, type PersonCall, type RunOrigin, type Verdict } from '../../shared/engine';
+import { EDGE_CDNS, ORIGIN_LABEL, PAID_LOOKUP, PERSON_CALL_LABEL, PERSON_CALLS, REVIEW_CHECK_LABEL, scoreParts, VERTICAL_LABEL, type EngineState, type Lead, type LeadReview, type PersonCall, type RunOrigin, type Verdict } from '../../shared/engine';
 import { api, ApiError } from '../api';
 import { markTour } from '../components/Tour';
 import { isEmailAddress, joinEmail, mailtoHref, splitEmail, type EmailParts } from '../../shared/email';
@@ -140,7 +140,7 @@ export default function Leads(props: { engine: EngineState; admin: boolean; need
             <ul className="key-list">
               <li>
                 <span className="tag t-you">approved</span>
-                <span>You pressed Send on the email.</span>
+                <span>You approved the email, with or without sending it yet.</span>
               </li>
               <li>
                 <span className="tag t-mute">skipped</span>
@@ -180,10 +180,43 @@ export default function Leads(props: { engine: EngineState; admin: boolean; need
   );
 }
 
+/** Where to write: an address read on a public page, none published, or not looked for yet. */
+function AddressFact({ lead }: { lead: Lead }) {
+  const a = lead.address;
+  if (!a) return <span className="sub">Not looked for yet. The verification layer reads the site’s contact pages within the next few minutes.</span>;
+  if (!a.email) {
+    return (
+      <>
+        <span className="row wrap">
+          None published <span className="tag t-mute">no address</span>
+        </span>
+        <span className="sub">{a.note} Planned: {PAID_LOOKUP} for sites like this.</span>
+      </>
+    );
+  }
+  return (
+    <>
+      <span className="row wrap">
+        <b className="mono addr">{a.email}</b>
+        <span className="tag t-eng">Found on page</span>
+      </span>
+      <span className="sub">
+        {a.kind === 'person' ? 'Their own address' : 'A shared inbox'}, {a.foundBy === 'agent' ? 'suggested by the profiler agent and confirmed on the page' : 'read by the verification layer on the site’s own page'}.
+      </span>
+      {a.sourceUrl && (
+        <a className="src" href={a.sourceUrl} target="_blank" rel="noreferrer">
+          Source <b>{hostOf(a.sourceUrl)}{new URL(a.sourceUrl).pathname.replace(/\/$/, '')}</b>
+        </a>
+      )}
+    </>
+  );
+}
+
 /** Where a lead stands, left to right: how it came in, the agent, the verification layer, then you. */
 function LeadProgress({ lead, recipient }: { lead: Lead; recipient: string }) {
   const checked = lead.verdict === 'verified' ? 'Name found on a public page' : lead.verdict === 'fetch_blocked' ? 'Source page blocked the check' : 'No name confirmed, writes to the role';
-  const yours = lead.status === 'approved' ? 'You sent it' : lead.status === 'skipped' ? 'You skipped it' : 'Your turn: edit, then Send or Skip';
+  const yours = lead.status === 'approved' ? 'You approved it' : lead.status === 'skipped' ? 'You skipped it' : 'Your turn: approve or skip the draft';
+  const address = !lead.address ? 'address not looked for yet' : lead.address.email ? 'address found on a page' : 'no address published';
   return (
     <ol className="lead-progress" aria-label="Where this lead stands">
       <li className="done">
@@ -202,7 +235,7 @@ function LeadProgress({ lead, recipient }: { lead: Lead; recipient: string }) {
         <span className="eyebrow">3 · Verification layer</span>
         <span>
           <span className="tag t-eng">Checked</span> {checked}
-          {lead.review ? ', second review done' : ''}
+          {lead.review ? ', second review done' : ''}, {address}
         </span>
       </li>
       <li className={lead.status === 'draft' ? 'now' : 'done'}>
@@ -230,12 +263,17 @@ const REVIEW_KEY: [LeadReview['decision'], string][] = [
 
 function LeadRow(props: { lead: Lead; tour: boolean; open: boolean; onToggle: () => void; admin: boolean; needPassword: () => void; onUpdate: (patch: Partial<Lead>) => void }) {
   const { lead } = props;
-  const [draft, setDraft] = useState<EmailParts>(() => splitEmail(lead.email ?? ''));
+  // An address the verification layer found fills an empty To line.
+  const stored = (): EmailParts => {
+    const parts = splitEmail(lead.email ?? '');
+    return !parts.to && lead.address?.email ? { ...parts, to: lead.address.email } : parts;
+  };
+  const [draft, setDraft] = useState<EmailParts>(stored);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const text = joinEmail(draft);
-  const dirty = text !== joinEmail(splitEmail(lead.email ?? ''));
+  const dirty = text !== joinEmail(stored());
   const named = lead.verdict === 'verified' && lead.contactName;
   const recipient = named ? `${lead.contactName}${lead.contactRole ? ` · ${lead.contactRole}` : ''}` : (lead.contactRole ?? 'commercial lead');
   const canSend = isEmailAddress(draft.to) && draft.subject.trim() !== '' && draft.body.trim() !== '';
@@ -402,6 +440,12 @@ function LeadRow(props: { lead: Lead; tour: boolean; open: boolean; onToggle: ()
                   )}
                 </dd>
               </div>
+              <div>
+                <dt>Address</dt>
+                <dd>
+                  <AddressFact lead={lead} />
+                </dd>
+              </div>
             </dl>
           </aside>
 
@@ -433,14 +477,15 @@ function LeadRow(props: { lead: Lead; tour: boolean; open: boolean; onToggle: ()
                   'Owner can edit and send.'
                 ) : !isEmailAddress(draft.to) ? (
                   <>
-                    {named ? `Agents find names, not addresses: add ${lead.contactName}'s address to send.` : `Agents find the role, not the address: find the ${recipient}'s name and address to send.`}{' '}
-                    {/* Only a page the verification layer found the name on is worth sending people to; otherwise start at the site. */}
+                    {!lead.address
+                      ? 'The verification layer is still reading the site’s contact pages for an address. You can approve the draft now.'
+                      : `${lead.domain} publishes no address we could read. Approve the draft now and add an address when you find one; ${PAID_LOOKUP} is planned for these.`}{' '}
                     <a href={named && lead.contactSourceUrl ? lead.contactSourceUrl : `https://${lead.domain}`} target="_blank" rel="noreferrer">
                       Look on {named && lead.contactSourceUrl ? hostOf(lead.contactSourceUrl) : lead.domain}
                     </a>
                   </>
                 ) : (
-                  'Send opens your mail app with this draft.'
+                  'Send approves the draft and opens your mail app with it.'
                 )}
               </span>
               <span className="row">
@@ -455,10 +500,18 @@ function LeadRow(props: { lead: Lead; tour: boolean; open: boolean; onToggle: ()
                     Save draft
                   </button>
                 )}
-                <button className="primary sm" disabled={saving || (props.admin && !canSend)} onClick={() => void send()}>
-                  <Icon name="send" />
-                  {lead.status === 'approved' ? 'Send again' : 'Send'}
-                </button>
+                {props.admin && !canSend ? (
+                  // No address yet: approving still records the call, so the flow learns from it.
+                  <button className="primary sm" disabled={saving || lead.status === 'approved'} onClick={() => void save({ email: text, status: 'approved' })}>
+                    <Icon name="check" />
+                    {lead.status === 'approved' ? 'Approved' : 'Approve'}
+                  </button>
+                ) : (
+                  <button className="primary sm" disabled={saving} onClick={() => void send()}>
+                    <Icon name="send" />
+                    {lead.status === 'approved' ? 'Send again' : 'Send'}
+                  </button>
+                )}
               </span>
             </footer>
             {error && <div className="notice error">{error}</div>}

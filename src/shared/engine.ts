@@ -294,7 +294,29 @@ export interface Lead {
   review: LeadReview | null;
   /** Who started the run this lead came from. */
   origin: RunOrigin;
+  /** Where to write. Null until the verification layer has looked for a published address. */
+  address: LeadAddress | null;
 }
+
+/**
+ * A published email address for a lead, kept only once the verification layer has found it on a
+ * public page. `email` is null when it looked and the site publishes none: those leads need a
+ * person, or later a paid contact-data service, to find one.
+ */
+export interface LeadAddress {
+  email: string | null;
+  /** The page the address was read from. */
+  sourceUrl: string | null;
+  /** A named person's address, or a shared inbox such as advertising@. */
+  kind: 'person' | 'inbox' | null;
+  /** The profiler agent suggested it, or the verification layer read it off the site's own contact pages. */
+  foundBy: 'agent' | 'scan' | null;
+  note: string;
+  checkedAt: string;
+}
+
+/** Contact-data services that could fill addresses no public page carries. Not connected yet. */
+export const PAID_LOOKUP = 'a paid contact-data service such as Hunter or Apollo';
 
 export const REVIEW_CHECKS = ['publisher', 'contact', 'page'] as const;
 export type ReviewCheckKey = (typeof REVIEW_CHECKS)[number];
