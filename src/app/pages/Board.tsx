@@ -103,7 +103,7 @@ export default function Board(props: { engine: EngineState; admin: boolean; onSt
                 <button type="button" className="b-row" data-tour={i === 0 ? 'board' : undefined} aria-haspopup="dialog" aria-expanded={open === r.domain} onClick={() => { markTour('board'); setOpen(r.domain); }}>
                   <span className="rk">{i + 1}</span>
                   <span className="d">
-                    {r.domain}
+                    <span className="dn">{r.domain}</span>
                     <SourceMark verified={r.verified} />
                   </span>
                   <EngineBar byEngine={r.byEngine} engines={board.engines} max={perEngine * board.engines.length} />

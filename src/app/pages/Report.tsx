@@ -77,7 +77,7 @@ export default function Report(props: { runId: string; domain: string }) {
               <li key={r.domain} className={r.domain === report.domain ? 'you' : ''}>
                 <button type="button" className="b-row" aria-haspopup="dialog" aria-expanded={open === r.domain} onClick={() => setOpen(r.domain)}>
                   <span className="d">
-                    {r.domain}
+                    <span className="dn">{r.domain}</span>
                     <SourceMark verified={r.verified} />
                   </span>
                   <EngineBar byEngine={r.byEngine} engines={report.engines} max={max} />

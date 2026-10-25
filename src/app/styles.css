@@ -1030,3 +1030,47 @@ button:active:not(:disabled):not(.primary), .button:active:not(.primary) { trans
   .tour { left: 12px; right: 12px; bottom: 12px; width: auto; max-height: 62dvh; }
   .tour-pill { right: 12px; bottom: 12px; max-width: calc(100vw - 24px); }
 }
+
+/* ── Phones and tablets: final pass ── */
+/* A site name trims with an ellipsis instead of being cut mid-letter. */
+.board .d .dn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 860px) {
+  /* The tag key wraps so every tag stays readable without a hidden sideways scroll. */
+  .ph .legend { flex-wrap: wrap; overflow: visible; margin-inline: 0; padding: 0; row-gap: 8px; }
+  /* Leads: the vertical sits under the site so the name keeps its width. */
+  .leadrow .n { flex-direction: column; align-items: flex-start; gap: 3px; }
+  .leadrow .n .nm { max-width: 100%; }
+}
+@media (max-width: 640px) {
+  /* Leaderboards: the site name gets the room, the bar keeps a fixed width. */
+  .board .b-row { grid-template-columns: minmax(0, 1fr) 72px 26px 12px; }
+  .board.big .b-row { grid-template-columns: 20px minmax(0, 1fr) 72px 46px 12px; }
+  .board:not(.pick) li { grid-template-columns: minmax(0, 1fr) 72px 26px; }
+  /* Leads: each row is a small card. Site and score on top, contact under it, then the status tags. */
+  .colh.leadrow { display: none; }
+  .dr.leadrow { grid-template-columns: 14px minmax(0, 1fr) auto; grid-template-areas: 'chev n fit' 'chev s fit' 'chev tags tags'; column-gap: 10px; row-gap: 4px; align-items: start; padding: 14px; }
+  .dr.leadrow .chev { grid-area: chev; align-self: center; }
+  .dr.leadrow .n { grid-area: n; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .dr.leadrow .n .nm { flex: 0 1 auto; font-size: 15px; }
+  .dr.leadrow .fit { grid-area: fit; display: block; font-size: 22px; line-height: 1; text-align: right; }
+  .dr.leadrow .s { grid-area: s; display: block; font-size: 13px; }
+  .dr.leadrow > .row { grid-area: tags; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+  /* Settings: one column per role, the Set/Empty tag above the name. */
+  .role { grid-template-columns: minmax(0, 1fr); }
+  .role > .tag { justify-self: start; }
+}
+.lk-toggle { display: none; }
+@media (max-width: 640px) {
+  .lk-toggle { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; }
+  .lk-toggle .chev { transition: rotate 0.2s; }
+  .lk-toggle .chev.open { rotate: 90deg; }
+  .lk-groups.lk-closed { display: none; }
+}
+@media (max-width: 860px) {
+  /* Thumb-sized tap targets on touch screens. */
+  .tabs button { min-height: 38px; }
+  .chip-btn { min-height: 36px; }
+  button.sm, .button.sm { min-height: 38px; }
+  .top-cta { min-height: 38px; }
+  .board .b-row { min-height: 40px; }
+}
