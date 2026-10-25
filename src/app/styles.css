@@ -197,6 +197,13 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1.5px solid var(--ink);
 .etag { color: var(--you); background: var(--you-bg); }
 .xtag { color: var(--sim); background: var(--sim-bg); }
 /* Lead open: facts on the left, the email composer on the right. */
+.lead-progress { grid-column: 1 / -1; list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.lead-progress li { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1.5px solid var(--hair); border-radius: 12px; background: var(--card); font-size: 13px; line-height: 18px; min-width: 0; }
+.lead-progress li.now { border-color: var(--accent); background: var(--accent-soft); box-shadow: var(--shadow-sm); }
+.lead-progress .tag { font-size: 11px; padding: 0 7px; }
+.lead-filters { align-items: center; gap: 10px; }
+@media (max-width: 860px) { .lead-progress { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 480px) { .lead-progress { grid-template-columns: 1fr; } }
 .lead-open { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: 16px; margin: 12px 20px 18px 48px; animation: page-in 0.25s ease-out backwards; }
 .facts { background: var(--paper2); border: 1.5px solid var(--ink); border-radius: 14px; padding: 14px 16px; align-self: start; }
 .facts dl { margin: 10px 0 0; display: flex; flex-direction: column; }
@@ -696,6 +703,8 @@ input[type='checkbox']:checked::after { scale: 1; }
 .check-row button { min-height: 52px; padding: 0 26px; font-size: 16px; }
 .check-foot, .check-meta { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
 .check-meta { border-top: 1.5px dashed var(--hair); padding-top: 12px; }
+.check-match { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--eng); font-weight: 600; }
+.runlist .small .tag { font-size: 11px; padding: 0 7px; vertical-align: 1px; }
 .chip-btn { min-height: 28px; padding: 0 10px; font-size: 12.5px; border-radius: 999px; border: 1.5px solid var(--hair); background: var(--paper); font-weight: 600; color: var(--ink2); }
 .chip-btn:hover:not(:disabled) { border-color: var(--ink); color: var(--ink); }
 
@@ -805,6 +814,9 @@ input[type='checkbox']:checked::after { scale: 1; }
 
 .leadcard { transition: translate 0.15s, box-shadow 0.15s; }
 .leadcard:hover { translate: -2px -2px; box-shadow: var(--shadow); }
+div.leadcard:hover { translate: none; box-shadow: var(--shadow-sm); }
+.leadcard-go { margin-top: auto; padding-top: 4px; gap: 12px; }
+.run-origin { gap: 8px; margin-bottom: 4px; }
 .nav a { transition: background-color 0.15s, border-color 0.15s, box-shadow 0.2s, translate 0.15s; }
 .nav a:not([aria-current='page']):hover { translate: 2px 0; }
 button:active:not(:disabled):not(.primary), .button:active:not(.primary) { translate: 1px 1px; }
@@ -861,9 +873,10 @@ button:active:not(:disabled):not(.primary), .button:active:not(.primary) { trans
 .station.is-active .sbadge-n { background: var(--accent); }
 
 
-.loop-hub { position: absolute; z-index: 3; left: 215px; top: 255px; width: 270px; padding: 18px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; box-shadow: var(--shadow); }
-.loop-hub b { font-size: 26px; font-weight: 800; line-height: 1.1; }
-.loop-hub p { margin: 0; font-size: 13px; color: var(--ink2); line-height: 18px; }
+.loop-hub { position: absolute; z-index: 3; left: 200px; top: 350px; translate: 0 -50%; width: 300px; padding: 16px 18px; display: flex; flex-direction: column; align-items: stretch; gap: 10px; box-shadow: var(--shadow); }
+.loop-hub b { font-size: 20px; font-weight: 800; line-height: 1.1; }
+.loop-hub p { margin: 4px 0 0; font-size: 13px; color: var(--ink2); line-height: 18px; }
+.hub-way + .hub-way { border-top: 1.5px dashed var(--hair); padding-top: 10px; }
 .loop-example { background: var(--paper2); border: 1.5px solid var(--ink); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 .loop-example p { font-size: 14px; line-height: 20px; }
 .loop-guard { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--eng); }

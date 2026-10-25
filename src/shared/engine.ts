@@ -127,6 +127,25 @@ export const ROLE_HELP: Record<Role, string> = {
 export const scoutRole = (engine: Engine): Role => `scout_${engine}` as Role;
 
 export type RunKind = 'vertical' | 'site' | 'question';
+
+/**
+ * Who started a run, which is how a lead came in: the 6-hour schedule refreshing a category,
+ * someone typing a site or question on the Check page, the owner refreshing a category from the
+ * leaderboard, or the bundled first run.
+ */
+export type RunOrigin = 'schedule' | 'check' | 'owner' | 'seed';
+export const ORIGIN_LABEL: Record<RunOrigin, string> = {
+  schedule: 'Every 6 hours',
+  check: 'Your check',
+  owner: 'Owner refresh',
+  seed: 'First run',
+};
+export const ORIGIN_HELP: Record<RunOrigin, string> = {
+  schedule: 'Started on its own by the scheduled agent, which refreshes one category every 6 hours.',
+  check: 'Started by a person on the Check page, for a site or question they typed.',
+  owner: 'Started by the owner from the leaderboard, to refresh one category now.',
+  seed: 'The bundled first run, made with AI agents running in the cloud on 21 October 2026.',
+};
 export type RunStatus = 'running' | 'done' | 'failed';
 
 /** The steps a run walks through, in order. A question run stops after `enrich`. */
@@ -153,6 +172,7 @@ export interface Run {
   step: Step;
   stepDetail: string | null;
   seed: boolean;
+  origin: RunOrigin;
   startedAt: string;
   finishedAt: string | null;
   error: string | null;
@@ -272,6 +292,8 @@ export interface Lead {
   status: 'draft' | 'approved' | 'skipped';
   /** The verifier agent's review, after code checked its quotes. Null when no verifier ran. */
   review: LeadReview | null;
+  /** Who started the run this lead came from. */
+  origin: RunOrigin;
 }
 
 export const REVIEW_CHECKS = ['publisher', 'contact', 'page'] as const;

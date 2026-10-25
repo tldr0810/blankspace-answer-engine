@@ -4,14 +4,16 @@
  * fact-check could not confirm are shown as the role only.
  */
 
-import { useEffect, useState } from 'react';
-import { EDGE_CDNS, PERSON_CALL_LABEL, PERSON_CALLS, REVIEW_CHECK_LABEL, scoreParts, VERTICAL_LABEL, type EngineState, type Lead, type LeadReview, type PersonCall, type Verdict } from '../../shared/engine';
+import { useEffect, useRef, useState } from 'react';
+import { EDGE_CDNS, ORIGIN_LABEL, PERSON_CALL_LABEL, PERSON_CALLS, REVIEW_CHECK_LABEL, scoreParts, VERTICAL_LABEL, type EngineState, type Lead, type LeadReview, type PersonCall, type RunOrigin, type Verdict } from '../../shared/engine';
 import { api, ApiError } from '../api';
 import { markTour } from '../components/Tour';
 import { isEmailAddress, joinEmail, mailtoHref, splitEmail, type EmailParts } from '../../shared/email';
-import { hostOf, Icon, PageSkeleton, ReviewTag, VerdictTag } from '../ui';
+import { hostOf, Icon, OriginTag, PageSkeleton, Picker, ReviewTag, VerdictTag } from '../ui';
 
-export default function Leads(props: { engine: EngineState; admin: boolean; needPassword: () => void }) {
+const ORIGINS: RunOrigin[] = ['schedule', 'check', 'owner', 'seed'];
+
+export default function Leads(props: { engine: EngineState; admin: boolean; needPassword: () => void; focus: string | null }) {
   // Refetch when a run finishes, so new leads show without a reload.
   const doneRuns = props.engine.runs.filter((r) => r.status === 'done').map((r) => r.id).join(',');
   const [leads, setLeads] = useState<Lead[] | null>(null);
@@ -19,6 +21,10 @@ export default function Leads(props: { engine: EngineState; admin: boolean; need
   const [filter, setFilter] = useState<'all' | 'verified' | 'approved'>('all');
   // On phones the tag key folds away so the list starts on the first screen.
   const [keyOpen, setKeyOpen] = useState(false);
+  const [source, setSource] = useState<RunOrigin | 'any'>('any');
+  // A link to #leads/<site> opens that site's lead at its email, once the list is in.
+  const focused = useRef<string | null>(null);
+  const scrollTo = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -30,8 +36,28 @@ export default function Leads(props: { engine: EngineState; admin: boolean; need
     };
   }, [doneRuns, props.admin]);
 
+  useEffect(() => {
+    if (!leads || !props.focus || focused.current === props.focus) return;
+    focused.current = props.focus;
+    const lead = leads.find((l) => l.domain === props.focus);
+    if (!lead) return;
+    setFilter('all');
+    setSource('any');
+    setOpen(lead.id);
+    scrollTo.current = lead.id;
+  }, [leads, props.focus]);
+  // Scroll once the opened lead has rendered its email.
+  useEffect(() => {
+    if (!open || scrollTo.current !== open) return;
+    scrollTo.current = null;
+    document.getElementById(`email-${open}`)?.scrollIntoView({ block: 'center' });
+  }, [open]);
+
   if (!leads) return <PageSkeleton kind="leads" label="Loading leads" />;
-  const shown = leads.filter((l) => (filter === 'verified' ? l.verdict === 'verified' : filter === 'approved' ? l.status === 'approved' : true));
+  const shown = leads
+    .filter((l) => (filter === 'verified' ? l.verdict === 'verified' : filter === 'approved' ? l.status === 'approved' : true))
+    .filter((l) => source === 'any' || l.origin === source);
+  const sources = ORIGINS.filter((o) => leads.some((l) => l.origin === o));
   // The tour points at the top lead, so its tip sits over the column headings rather than another lead.
   const tourLead = shown[0]?.id;
   const update = (id: string, patch: Partial<Lead>) => setLeads((all) => all!.map((l) => (l.id === id ? { ...l, ...patch } : l)));
@@ -46,13 +72,29 @@ export default function Leads(props: { engine: EngineState; admin: boolean; need
             Each publisher the engine kept, one row per site across every run, the person or role to contact, whether automated checks confirmed that name on a public page, and a first email
             built only from counted facts. Nothing is sent from here.
           </p>
+          <p className="muted small">
+            Leads come in two ways: <OriginTag origin="schedule" /> the scheduled agent refreshes one category on its own, and{' '}
+            <OriginTag origin="check" /> someone types a site on the <a href="#check">Check</a> page. A site found both ways shows its latest run.
+          </p>
         </div>
-        <div className="tabs" role="tablist">
-          {(['all', 'verified', 'approved'] as const).map((f) => (
-            <button key={f} aria-pressed={filter === f} onClick={() => setFilter(f)}>
-              {f === 'all' ? `All ${leads.length}` : f === 'verified' ? `Checked contact ${leads.filter((l) => l.verdict === 'verified').length}` : `Approved ${leads.filter((l) => l.status === 'approved').length}`}
-            </button>
-          ))}
+        <div className="row wrap lead-filters">
+          <Picker
+            className="lead-source"
+            value={source}
+            onChange={(value) => setSource(value as RunOrigin | 'any')}
+            label="Source"
+            options={[
+              { value: 'any', label: 'All sources' },
+              ...sources.map((o) => ({ value: o, label: `${ORIGIN_LABEL[o]} ${leads.filter((l) => l.origin === o).length}` })),
+            ]}
+          />
+          <div className="tabs" role="tablist">
+            {(['all', 'verified', 'approved'] as const).map((f) => (
+              <button key={f} aria-pressed={filter === f} onClick={() => setFilter(f)}>
+                {f === 'all' ? `All ${leads.length}` : f === 'verified' ? `Checked contact ${leads.filter((l) => l.verdict === 'verified').length}` : `Approved ${leads.filter((l) => l.status === 'approved').length}`}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -135,6 +177,41 @@ export default function Leads(props: { engine: EngineState; admin: boolean; need
         ))}
       </section>
     </div>
+  );
+}
+
+/** Where a lead stands, left to right: how it came in, the agent, the verification layer, then you. */
+function LeadProgress({ lead, recipient }: { lead: Lead; recipient: string }) {
+  const checked = lead.verdict === 'verified' ? 'Name found on a public page' : lead.verdict === 'fetch_blocked' ? 'Source page blocked the check' : 'No name confirmed, writes to the role';
+  const yours = lead.status === 'approved' ? 'You sent it' : lead.status === 'skipped' ? 'You skipped it' : 'Your turn: edit, then Send or Skip';
+  return (
+    <ol className="lead-progress" aria-label="Where this lead stands">
+      <li className="done">
+        <span className="eyebrow">1 · Came in</span>
+        <span>
+          <OriginTag origin={lead.origin} /> <a href={`#run/${lead.runId}`}>See the run</a>
+        </span>
+      </li>
+      <li className="done">
+        <span className="eyebrow">2 · Agent</span>
+        <span>
+          <span className="tag t-ai">AI agent</span> Found {recipient}
+        </span>
+      </li>
+      <li className="done">
+        <span className="eyebrow">3 · Verification layer</span>
+        <span>
+          <span className="tag t-eng">Checked</span> {checked}
+          {lead.review ? ', second review done' : ''}
+        </span>
+      </li>
+      <li className={lead.status === 'draft' ? 'now' : 'done'}>
+        <span className="eyebrow">4 · You</span>
+        <span>
+          <span className="tag t-you">You</span> {yours}
+        </span>
+      </li>
+    </ol>
   );
 }
 
@@ -223,6 +300,7 @@ function LeadRow(props: { lead: Lead; tour: boolean; open: boolean; onToggle: ()
         <span className="n">
           <span className="nm">{lead.domain}</span>
           <span className="tag t-mute">{VERTICAL_LABEL[lead.vertical]}</span>
+          <OriginTag origin={lead.origin} />
         </span>
         <span className="s">
           {lead.contactName ?? lead.contactRole ?? '–'}
@@ -236,6 +314,7 @@ function LeadRow(props: { lead: Lead; tour: boolean; open: boolean; onToggle: ()
       </div>
       {props.open && (
         <div className="lead-open">
+          <LeadProgress lead={lead} recipient={recipient} />
           <aside className="facts" aria-label={`What we know about ${lead.domain}`}>
             <span className="eyebrow">The facts</span>
             <dl>
@@ -326,7 +405,7 @@ function LeadRow(props: { lead: Lead; tour: boolean; open: boolean; onToggle: ()
             </dl>
           </aside>
 
-          <section className="composer" aria-label="Email draft">
+          <section className="composer" id={`email-${lead.id}`} aria-label="Email draft">
             <header>
               <span className="eyebrow">Email</span>
               <span className={`tag ${lead.status === 'approved' ? 't-you' : 't-mute'}`}>{lead.status === 'draft' ? (dirty ? 'unsaved edits' : 'draft') : lead.status}</span>
@@ -350,13 +429,19 @@ function LeadRow(props: { lead: Lead; tour: boolean; open: boolean; onToggle: ()
             )}
             <footer>
               <span className="muted small">
-                {!props.admin
-                  ? 'Owner can edit and send.'
-                  : !isEmailAddress(draft.to)
-                    ? named
-                      ? `Add ${lead.contactName}'s address to send.`
-                      : `Find the ${recipient}'s name and address before sending.`
-                    : 'Send opens your mail app with this draft.'}
+                {!props.admin ? (
+                  'Owner can edit and send.'
+                ) : !isEmailAddress(draft.to) ? (
+                  <>
+                    {named ? `Agents find names, not addresses: add ${lead.contactName}'s address to send.` : `Agents find the role, not the address: find the ${recipient}'s name and address to send.`}{' '}
+                    {/* Only a page the verification layer found the name on is worth sending people to; otherwise start at the site. */}
+                    <a href={named && lead.contactSourceUrl ? lead.contactSourceUrl : `https://${lead.domain}`} target="_blank" rel="noreferrer">
+                      Look on {named && lead.contactSourceUrl ? hostOf(lead.contactSourceUrl) : lead.domain}
+                    </a>
+                  </>
+                ) : (
+                  'Send opens your mail app with this draft.'
+                )}
               </span>
               <span className="row">
                 <button className="sm" onClick={() => void copy()}>

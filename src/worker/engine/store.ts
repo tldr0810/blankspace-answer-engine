@@ -16,6 +16,7 @@ import {
   type Role,
   type Run,
   type RunEvent,
+  type RunOrigin,
   type PageVerdict,
   type SiteFacts,
   type Vertical,
@@ -75,10 +76,17 @@ interface RunRow {
   step: Run['step'];
   step_detail: string | null;
   seed: number;
+  origin: RunOrigin | null;
   started_at: string;
   finished_at: string | null;
   error: string | null;
 }
+
+/** Runs from before run_origins were all the schedule's category runs or someone's check. */
+const originOf = (row: { kind: Run['kind']; seed: number; origin: RunOrigin | null }): RunOrigin =>
+  row.seed === 1 ? 'seed' : (row.origin ?? (row.kind === 'vertical' ? 'schedule' : 'check'));
+
+const RUNS = 'SELECT r.*, o.origin FROM runs r LEFT JOIN run_origins o ON o.run_id = r.id';
 
 const toRun = (row: RunRow): Run => ({
   id: row.id,
@@ -91,23 +99,24 @@ const toRun = (row: RunRow): Run => ({
   step: row.step,
   stepDetail: row.step_detail,
   seed: row.seed === 1,
+  origin: originOf(row),
   startedAt: row.started_at,
   finishedAt: row.finished_at,
   error: row.error,
 });
 
 export async function getRun(env: Env, id: string): Promise<Run | null> {
-  const row = await env.DB.prepare('SELECT * FROM runs WHERE id = ?').bind(id).first<RunRow>();
+  const row = await env.DB.prepare(`${RUNS} WHERE r.id = ?`).bind(id).first<RunRow>();
   return row ? toRun(row) : null;
 }
 
 export async function listRuns(env: Env, limit = 30): Promise<Run[]> {
-  const { results } = await env.DB.prepare('SELECT * FROM runs ORDER BY started_at DESC LIMIT ?').bind(limit).all<RunRow>();
+  const { results } = await env.DB.prepare(`${RUNS} ORDER BY r.started_at DESC LIMIT ?`).bind(limit).all<RunRow>();
   return (results ?? []).map(toRun);
 }
 
 export async function activeRuns(env: Env): Promise<Run[]> {
-  const { results } = await env.DB.prepare(`SELECT * FROM runs WHERE status = 'running' ORDER BY started_at`).all<RunRow>();
+  const { results } = await env.DB.prepare(`${RUNS} WHERE r.status = 'running' ORDER BY r.started_at`).all<RunRow>();
   return (results ?? []).map(toRun);
 }
 
@@ -126,6 +135,7 @@ export async function insertRun(env: Env, run: Run): Promise<void> {
       run.status, run.step, run.stepDetail, run.seed ? 1 : 0, run.startedAt, run.finishedAt, run.error,
     )
     .run();
+  await env.DB.prepare('INSERT OR REPLACE INTO run_origins (run_id, origin) VALUES (?, ?)').bind(run.id, run.origin).run();
 }
 
 export async function updateRun(env: Env, id: string, patch: Partial<Pick<Run, 'status' | 'step' | 'stepDetail' | 'finishedAt' | 'error'>>): Promise<void> {
@@ -303,7 +313,7 @@ export async function sourceTotals(env: Env): Promise<{ ok: number; dropped: num
 /** The latest finished vertical run per vertical: the leaderboard's source. */
 export async function latestVerticalRuns(env: Env): Promise<Run[]> {
   const { results } = await env.DB.prepare(
-    `SELECT * FROM runs r WHERE kind = 'vertical' AND status = 'done' AND started_at = (
+    `${RUNS} WHERE r.kind = 'vertical' AND r.status = 'done' AND r.started_at = (
        SELECT MAX(started_at) FROM runs x WHERE x.kind = 'vertical' AND x.status = 'done' AND x.vertical = r.vertical)`,
   ).all<RunRow>();
   return (results ?? []).map(toRun);
@@ -355,7 +365,11 @@ export async function bestLeads(env: Env): Promise<Lead[]> {
 }
 
 async function toLeads(env: Env, rows: LeadRow[]): Promise<Lead[]> {
-  const [facts, reviews] = await Promise.all([siteFacts(env, rows.map((r) => r.domain)), leadReviews(env, rows.map((r) => r.id))]);
+  const [facts, reviews, origins] = await Promise.all([
+    siteFacts(env, rows.map((r) => r.domain)),
+    leadReviews(env, rows.map((r) => r.id)),
+    runOrigins(env, [...new Set(rows.map((r) => r.run_id))]),
+  ]);
   return rows.map((r) => ({
     id: r.id,
     runId: r.run_id,
@@ -381,7 +395,21 @@ async function toLeads(env: Env, rows: LeadRow[]): Promise<Lead[]> {
     email: r.email,
     status: r.status,
     review: reviews.get(r.id) ?? null,
+    origin: origins.get(r.run_id) ?? 'schedule',
   }));
+}
+
+async function runOrigins(env: Env, ids: string[]): Promise<Map<string, RunOrigin>> {
+  const out = new Map<string, RunOrigin>();
+  for (let i = 0; i < ids.length; i += 50) {
+    const chunk = ids.slice(i, i + 50);
+    if (!chunk.length) continue;
+    const { results } = await env.DB.prepare(`SELECT r.id, r.kind, r.seed, o.origin FROM runs r LEFT JOIN run_origins o ON o.run_id = r.id WHERE r.id IN (${chunk.map(() => '?').join(', ')})`)
+      .bind(...chunk)
+      .all<{ id: string; kind: Run['kind']; seed: number; origin: RunOrigin | null }>();
+    for (const row of results ?? []) out.set(row.id, originOf(row));
+  }
+  return out;
 }
 
 async function leadReviews(env: Env, ids: string[]): Promise<Map<string, LeadReview>> {
@@ -468,7 +496,7 @@ export async function saveReview(env: Env, leadId: string, review: LeadReview): 
     .run();
 }
 
-export async function insertLead(env: Env, lead: Omit<Lead, 'facts' | 'review'>): Promise<void> {
+export async function insertLead(env: Env, lead: Omit<Lead, 'facts' | 'review' | 'origin'>): Promise<void> {
   await env.DB.prepare(
     `INSERT OR REPLACE INTO leads (id, run_id, vertical, domain, score, answers, total, citations, pages, queries, owner, company_type,
        monetisation, ai_deal, contact_role, contact_name, contact_source_url, why, verdict, verify_note, email, status, updated_at)

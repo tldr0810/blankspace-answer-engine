@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { newRun, scoutBatches } from '../src/worker/engine/runner';
 
 describe('scoutBatches', () => {
-  const run = newRun('vertical', { vertical: 'running', engines: ['claude'] });
+  const run = newRun('vertical', { vertical: 'running', engines: ['claude'], origin: 'schedule' });
 
   it('splits a vertical into turns of 5 questions', () => {
     const batches = scoutBatches(run, { calls: {}, candidates: [], enriched: 0, verified: 0 }, 'scout_claude');

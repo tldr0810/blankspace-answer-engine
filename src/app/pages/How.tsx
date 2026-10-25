@@ -6,7 +6,7 @@ import { markTour } from '../components/Tour';
 /** How the engine works: who does what, and the guardrails. */
 
 const STEPS: { who: string; tag: string; title: string; body: string }[] = [
-  { who: 'AI agents', tag: 't-ai', title: 'Ask', body: 'Each engine (a Claude, a Gemini and optionally a ChatGPT agent, all running in the cloud) searches the web for every buying question like a UK shopper and lists the pages it would cite.' },
+  { who: 'AI agents', tag: 't-ai', title: 'Ask', body: 'Each engine (a Claude, a Gemini and optionally a ChatGPT agent, all running in the cloud) searches the web for every buying question like a UK shopper and lists the pages it would cite. A run starts in one of two ways: every 6 hours on its own for the next category (step 11), or when someone types a site or question on the Check page.' },
   { who: 'Verification layer', tag: 't-eng', title: 'Verify sources', body: 'A cited page must be one its own search returned, or it is dropped. Then the verification layer opens every cited page: a page that is gone, redirects to the home page or no longer covers the question is left out of every count. Sites that block automated checks stay in, marked unchecked.' },
   { who: 'Verification layer', tag: 't-eng', title: 'Count', body: 'Deterministic counting: how many answers cite each site, per engine, from the pages that passed.' },
   { who: 'Verification layer', tag: 't-eng', title: 'Check', body: 'For each cited site the verification layer reads ads.txt, a cited page (affiliate links, CDN headers) and robots.txt (which AI agents it lets in). Marketplaces, forums and brands drop out.' },

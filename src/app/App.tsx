@@ -7,6 +7,7 @@
  *   #board                 AI answer share by vertical
  *   #report/<run>/<site>   the report a publisher would get
  *   #leads                 contacts and first-email drafts
+ *   #leads/<site>          the same, opened at that site's email
  *   #how                   how the engine works
  *   #settings              owner only: connect Manyfold agents, assign roles
  */
@@ -51,6 +52,7 @@ function parseHash(): Route {
   const [head, a, b] = raw.split('/');
   if (head === 'run' && a) return { page: 'run', runId: a, domain: null };
   if (head === 'report' && a && b) return { page: 'report', runId: a, domain: b };
+  if (head === 'leads' && a) return { page: 'leads', runId: null, domain: a };
   const page = (['loop', 'check', 'board', 'leads', 'how', 'settings'] as Page[]).includes(head as Page) ? (head as Page) : 'loop';
   return { page, runId: null, domain: null };
 }
@@ -143,7 +145,7 @@ export default function App() {
   } else if (page === 'board') {
     body = <Board engine={engine} admin={admin} onStarted={refresh} needPassword={() => setGateOpen(true)} />;
   } else if (page === 'leads') {
-    body = <Leads engine={engine} admin={admin} needPassword={() => setGateOpen(true)} />;
+    body = <Leads engine={engine} admin={admin} focus={route.domain} needPassword={() => setGateOpen(true)} />;
   } else if (page === 'loop') {
     body = <Loop engine={engine} />;
   } else if (page === 'how') {

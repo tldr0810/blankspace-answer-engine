@@ -1,12 +1,13 @@
 /**
- * Home: run a live check. A visitor types a site (how often do AI answers cite it?) or a buying
- * question (who do AI answers lean on?), picks the vertical, and watches the engine work.
+ * Check: the hand-started way in. The schedule refreshes one category every 6 hours on its own;
+ * here a person types a site (how often do AI answers cite it?) or a buying question (who do AI
+ * answers lean on?), picks the category, and watches the engine work.
  */
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ENGINE_LABEL, VERTICALS, VERTICAL_LABEL, type EngineState, type Run, type Vertical, type VerticalBoard } from '../../shared/engine';
 import { api, ApiError } from '../api';
-import { ago, EngineTag, Icon, Picker } from '../ui';
+import { ago, EngineTag, hostOf, Icon, OriginTag, Picker } from '../ui';
 
 type Mode = 'site' | 'question';
 
@@ -52,6 +53,27 @@ const QUESTION_EXAMPLES: Example[] = [
   { text: 'best trail shoes for wide feet', vertical: 'running' },
 ];
 
+/**
+ * The category a site already sits on: the board where it has the largest share of answers.
+ * Lets the Check page pick the category that matches a typed site.
+ */
+export function siteVerticals(boards: VerticalBoard[]): Map<string, Vertical> {
+  const best = new Map<string, { vertical: Vertical; share: number }>();
+  for (const b of boards) {
+    for (const r of b.rows) {
+      if (r.publisher === false) continue;
+      const share = b.total ? r.answers / b.total : 0;
+      if (share > (best.get(r.domain)?.share ?? -1)) best.set(r.domain, { vertical: b.vertical, share });
+    }
+  }
+  return new Map([...best].map(([domain, v]) => [domain, v.vertical]));
+}
+
+const siteOf = (raw: string) => {
+  const value = raw.trim().toLowerCase();
+  return value ? hostOf(value.includes('://') ? value : `https://${value}`) : '';
+};
+
 export function runTitle(run: Run): string {
   if (run.kind === 'site') return run.domain ?? 'Site check';
   if (run.kind === 'question') return `“${run.questions[0]}”`;
@@ -65,6 +87,9 @@ export default function Check(props: { engine: EngineState; admin: boolean; onSt
   const [vertical, setVertical] = useState<Vertical>('consumer_tech');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // The site whose board picked the category, so the note can say why it changed.
+  const [matched, setMatched] = useState<string | null>(null);
+  const known = useMemo(() => siteVerticals(engine.boards), [engine.boards]);
 
   const ready = engine.engines.length > 0;
   const left = Math.max(0, engine.limits.dailyLimit - engine.limits.runsToday);
@@ -87,16 +112,33 @@ export default function Check(props: { engine: EngineState; admin: boolean; onSt
 
   const examples = mode === 'site' ? exampleSites(engine.boards) : QUESTION_EXAMPLES;
   const recent = engine.runs.filter((r) => !r.seed).slice(0, 8);
+  // The grey hint is always a site from the chosen category, so the two never disagree.
+  const hint = mode === 'site' ? (examples.find((ex) => ex.vertical === vertical) ?? examples[0]).text : 'best noise cancelling headphones under £200';
+
+  const type = (value: string) => {
+    setText(value);
+    if (mode !== 'site') return;
+    const site = siteOf(value);
+    const on = known.get(site);
+    // Switch once per site, so a category picked by hand afterwards stays.
+    if (on && site !== matched) {
+      setVertical(on);
+      setMatched(site);
+    } else if (!on) setMatched(null);
+  };
 
   return (
     <div className="stack">
       <div className="ph">
         <div>
-          <span className="eyebrow">Live · UK buying questions</span>
+          <span className="eyebrow">Your check · you pick the site</span>
           <h1>How often do AI answers send buyers to your site?</h1>
           <p>
-            Type a publisher’s site or a question a shopper would ask. Real AI agents search the web and answer, automated checks count who they
-            cite, checks how each site makes money, finds the right person and drafts the first email.
+            The agents already refresh one category every 6 hours on their own (next up: {VERTICAL_LABEL[engine.autopilot.nextVertical]}), and
+            what they find lands on the <a href="#board">Leaderboard</a> and <a href="#leads">Leads</a>. This page is the other way in: type a
+            publisher’s site or a question a shopper would ask, pick its category and press Run. AI agents search the web and answer, automated
+            checks count who they cite and how each site makes money, an agent finds who to talk to, and a first email is drafted for you to
+            review.
           </p>
         </div>
       </div>
@@ -115,8 +157,8 @@ export default function Check(props: { engine: EngineState; admin: boolean; onSt
             id="check-text"
             type="text"
             value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={mode === 'site' ? examples[0].text : 'best noise cancelling headphones under £200'}
+            onChange={(e) => type(e.target.value)}
+            placeholder={hint}
             aria-label={mode === 'site' ? 'Site' : 'Buying question'}
             autoComplete="off"
           />
@@ -124,13 +166,19 @@ export default function Check(props: { engine: EngineState; admin: boolean; onSt
             className="check-vertical"
             value={vertical}
             onChange={(value) => setVertical(value as Vertical)}
-            label="Vertical"
+            label="Category"
             options={VERTICALS.map((v) => ({ value: v, label: VERTICAL_LABEL[v] }))}
           />
           <button className="primary" type="submit" disabled={busy || !ready || !text.trim()}>
             <Icon name="play" /> {busy ? 'Starting…' : 'Run'}
           </button>
         </div>
+        {mode === 'site' && matched && siteOf(text) === matched && (
+          <p className="check-match small">
+            <Icon name="check" /> {matched} is on the {VERTICAL_LABEL[known.get(matched)!]} leaderboard, so that category is picked.
+            {known.get(matched) !== vertical && ` You changed it to ${VERTICAL_LABEL[vertical]}.`}
+          </p>
+        )}
         <div className="check-foot">
           <span className="muted small">
             {mode === 'site'
@@ -147,6 +195,7 @@ export default function Check(props: { engine: EngineState; admin: boolean; onSt
                 onClick={() => {
                   setText(ex.text);
                   setVertical(ex.vertical);
+                  setMatched(null);
                 }}
               >
                 {ex.text}
@@ -174,7 +223,8 @@ export default function Check(props: { engine: EngineState; admin: boolean; onSt
 
       <div className="grid2">
         <section className="panel">
-          <h2>Recent live runs</h2>
+          <h2>Recent runs</h2>
+          <p className="muted small">Both ways in: runs the schedule started every 6 hours, and checks people started here.</p>
           {recent.length === 0 ? (
             <p className="muted">None yet. Start one above; it takes a few minutes because real agents search the web.</p>
           ) : (
@@ -185,7 +235,7 @@ export default function Check(props: { engine: EngineState; admin: boolean; onSt
                     <span className={`status s-${run.status}`}>{run.status === 'running' ? 'Live' : run.status === 'done' ? 'Done' : 'Stopped'}</span>
                     <b>{runTitle(run)}</b>
                     <span className="muted small">
-                      {VERTICAL_LABEL[run.vertical!]} · {run.engines.map((e) => ENGINE_LABEL[e]).join(' + ')} · {ago(run.startedAt)}
+                      <OriginTag origin={run.origin} /> {VERTICAL_LABEL[run.vertical!]} · {run.engines.map((e) => ENGINE_LABEL[e]).join(' + ')} · {ago(run.startedAt)}
                     </span>
                   </a>
                 </li>

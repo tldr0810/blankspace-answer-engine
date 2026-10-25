@@ -170,7 +170,7 @@ export function engineRoutes(adminOk: AdminCheck) {
       throw new HttpError(429, 'daily_limit', `Today's ${dailyLimit(c.env)} live runs are used. The saved results are still here to explore.`);
     }
 
-    const run = newRun(kind, { vertical, domain, question, engines });
+    const run = newRun(kind, { vertical, domain, question, engines, origin: kind === 'vertical' ? 'owner' : 'check' });
     await insertRun(c.env, run);
     await addEvent(
       c.env,

@@ -134,7 +134,7 @@ export default function Report(props: { runId: string; domain: string }) {
           </p>
           {report.lead.owner && <p className="muted small">Owner: {report.lead.owner}</p>}
           {report.lead.verifyNote && <p className="muted small">Fact-check: {report.lead.verifyNote}</p>}
-          <a href="#leads">Open the draft email</a>
+          <a href={`#leads/${encodeURIComponent(report.domain)}`}>Open the draft email</a>
         </section>
       )}
 
