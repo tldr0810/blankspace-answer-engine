@@ -14,6 +14,7 @@
 
 import { z } from 'zod';
 import {
+  ENGINE_LABEL,
   QUESTIONS,
   scoutRole,
   STEP_LABEL,
@@ -31,7 +32,7 @@ import { now } from '../db';
 import { A2AError, safeErrorText } from '../a2a';
 import type { Env } from '../types';
 import { checkSite, fetchText, findAddress, verifyContact } from './fetchers';
-import { acceptAnswers, draftEmail, foreignSite, isPublisher, listedNonPublisher, quoteOnPage, score as scoreSite, settleReview, type RawCheck } from './logic';
+import { acceptAnswers, draftEmail, searchExcuse, foreignSite, isPublisher, listedNonPublisher, quoteOnPage, score as scoreSite, settleReview, type RawCheck } from './logic';
 import { profilePrompt, profileSchema, scoutPrompt, scoutSchema, verifierPrompt, verifierSchema } from './prompts';
 import {
   addEvent,
@@ -308,8 +309,11 @@ async function stepAsk(env: Env, run: Run, bag: Bag): Promise<StepResult> {
           await addEvent(
             env,
             run.id,
-            `The ${engine} scout answered ${answers.length} of ${questions.length} questions${part} with ${cited} citations.` +
-              (dropped ? ` Code dropped ${dropped} cited ${dropped === 1 ? 'URL' : 'URLs'} that its own search never returned.` : ''),
+            cited === 0
+              ? `The ${ENGINE_LABEL[engine]} scout's search found nothing it could cite${part}: ${searchExcuse(drive.text)}` +
+                  ' If no batch from this engine cites anything, its answers are left out of the counts.'
+              : `The ${engine} scout answered ${answers.length} of ${questions.length} questions${part} with ${cited} citations.` +
+                  (dropped ? ` The automated check dropped ${dropped} cited ${dropped === 1 ? 'URL' : 'URLs'} that its own search never returned.` : ''),
           );
         } catch (error) {
           call.status = 'failed';
@@ -355,7 +359,7 @@ async function stepScore(env: Env, run: Run, bag: Bag): Promise<StepResult> {
         '.',
     );
   }
-  const { rows, total } = await boardFor(env, run.id);
+  const { rows, total, silent } = await boardFor(env, run.id);
   if (run.kind === 'site') {
     bag.candidates = [run.domain!];
   } else {
@@ -370,6 +374,10 @@ async function stepScore(env: Env, run: Run, bag: Bag): Promise<StepResult> {
     if (ruledOut) await addEvent(env, run.id, `Skipped ${ruledOut} ${ruledOut === 1 ? 'site' : 'sites'} an earlier review ruled out as not a publisher.`);
   }
   bag.enriched = 0;
+  if (silent.length) {
+    const names = silent.map((e) => ENGINE_LABEL[e]).join(' and ');
+    await addEvent(env, run.id, `${names} cited nothing in any batch, so ${silent.length === 1 ? 'its' : 'their'} answers are left out of the counts.`);
+  }
   await addEvent(env, run.id, `Counted ${total} answers citing ${rows.length} different sites. Checking ${bag.candidates.length} of them.`);
   return { next: 'enrich' };
 }

@@ -45,6 +45,18 @@ export function EngineBar(props: { byEngine: Partial<Record<Engine, number>>; en
   );
 }
 
+/** Engines that were asked but cited nothing all run: said out loud, so a missing colour is never a mystery. */
+export function SilentEngines({ engines }: { engines: Engine[] }) {
+  if (!engines.length) return null;
+  const names = engines.map((e) => ENGINE_LABEL[e]).join(' and ');
+  return (
+    <p className="small warn">
+      {names} {engines.length === 1 ? 'was' : 'were'} asked too, but {engines.length === 1 ? 'its' : 'their'} web search returned nothing it could cite, so{' '}
+      {engines.length === 1 ? 'its' : 'their'} answers are left out of these counts.
+    </p>
+  );
+}
+
 const ORIGIN_CLS: Record<RunOrigin, string> = { schedule: 't-ai', check: 't-you', owner: 't-you', seed: 't-mute' };
 
 /** How a run, and so a lead, came in: the 6-hour schedule or a person. */

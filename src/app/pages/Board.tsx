@@ -10,7 +10,7 @@ import { ago, ENGINE_VAR, EngineBar, Icon, SourceMark } from '../ui';
 /** One engine's part of this run: how many answers came back, and whether any of them named a page. */
 function EngineStatus({ board, engine }: { board: VerticalBoard; engine: Engine }) {
   const got = board.engineAnswers?.[engine];
-  const note = !got ? 'no answers this run' : got.cited === 0 ? `${got.answers} answers, no pages cited` : `cited pages in ${got.cited} answers`;
+  const note = !got ? 'no answers this run' : got.cited === 0 ? `${got.answers} answers, no pages cited, left out of the counts` : `cited pages in ${got.cited} answers`;
   const quiet = !got || got.cited === 0;
   return (
     <span className={`tag t-mute eng-status${quiet ? ' quiet' : ''}`}>
@@ -103,7 +103,7 @@ export default function Board(props: { engine: EngineState; admin: boolean; onSt
             )}
           </div>
           <div className="legend">
-            {board?.engines.map((e) => <EngineStatus key={e} board={board} engine={e} />)}
+            {board && [...board.engines, ...(board.silent ?? [])].map((e) => <EngineStatus key={e} board={board} engine={e} />)}
           </div>
         </div>
         {board && rows.length > 0 && (

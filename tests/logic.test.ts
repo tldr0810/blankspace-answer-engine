@@ -3,6 +3,8 @@ import {
   emailOnPage,
   pageEmails,
   pickAddress,
+  countedAnswers,
+  searchExcuse,
   acceptAnswers,
   foreignSite,
   onePerSite,
@@ -38,6 +40,30 @@ describe('acceptAnswers', () => {
     expect(cleanUrls(['javascript:alert(1)', 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc', 'https://ok.com/#frag'], 10)).toEqual([
       'https://ok.com/',
     ]);
+  });
+});
+
+describe('countedAnswers', () => {
+  it('leaves out an engine that cited nothing in the whole run', () => {
+    const answers = [
+      { engine: 'claude' as const, query: 'q1', cited: ['https://a.co.uk/x'], seen: ['https://a.co.uk/x'] },
+      { engine: 'claude' as const, query: 'q2', cited: [], seen: [] },
+      { engine: 'gpt' as const, query: 'q1', cited: [], seen: ['https://zhihu.com/question/1'] },
+      { engine: 'gpt' as const, query: 'q2', cited: [], seen: [] },
+    ];
+    const counted = countedAnswers(answers);
+    expect(counted.engines).toEqual(['claude']);
+    expect(counted.silent).toEqual(['gpt']);
+    // Claude's own empty answer still counts: its search worked, it just cited no one.
+    expect(counted.answers.map((a) => `${a.engine}:${a.query}`)).toEqual(['claude:q1', 'claude:q2']);
+  });
+});
+
+describe('searchExcuse', () => {
+  it('keeps the reason at the end of the prose, not the JSON', () => {
+    const text = 'I will run one search per question. Google returned a JavaScript challenge. Bing returned unrelated results.\n\n```json\n{"answers":[]}\n```';
+    expect(searchExcuse(text)).toBe('Google returned a JavaScript challenge. Bing returned unrelated results.');
+    expect(searchExcuse('```json\n{}\n```')).toBe('it gave no reason.');
   });
 });
 
