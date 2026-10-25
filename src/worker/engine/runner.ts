@@ -3,7 +3,7 @@
  * wait before the next one, so no request ever holds a long agent turn open and a crash or
  * deploy resumes from the stored step.
  *
- *   ask      agents   every engine answers the buying questions (in parallel, one turn each)
+ *   ask      agents   every engine answers the buying questions (engines in parallel, 5 questions a turn)
  *   score    code     count citations per site, pick who to check
  *   enrich   code     ads.txt, a cited page, robots.txt, a few sites per tick
  *   profile  agent    owner, business model, best contact (one turn for all leads)
@@ -52,6 +52,8 @@ import { extractJson, getTask, problemText, submitTask } from './tasks';
 
 const LEADS_PER_VERTICAL = 5;
 const SITE_QUESTIONS = 5;
+/** Questions per scout turn. A 15-question turn ran 7-11 minutes and often ended as failed. */
+const QUESTIONS_PER_TURN = 5;
 const ENRICH_PER_TICK = 3;
 const VERIFY_PER_TICK = 3;
 const PAGES_PER_TICK = 10;
@@ -82,7 +84,8 @@ interface CallState {
 }
 
 interface Bag {
-  calls: Partial<Record<Role, CallState>>;
+  /** Keyed by role, or by role plus batch (`scout_claude.b1`) for scout turns. */
+  calls: Partial<Record<string, CallState>>;
   /** Cited pages this run opened, by outcome. */
   pages?: { ok: number; dropped: number; blocked: number };
   candidates: string[];
@@ -123,16 +126,16 @@ export function newRun(kind: RunKind, options: { vertical: Vertical; domain?: st
 
 /* ───────── agent calls ───────── */
 
-const callIdFor = (run: Run, role: Role, resubmits: number) => `${run.id}.${role}${resubmits ? `.s${resubmits}` : ''}`;
+const callIdFor = (run: Run, key: string, resubmits: number) => `${run.id}.${key}${resubmits ? `.s${resubmits}` : ''}`;
 
-async function submit(env: Env, run: Run, call: CallState, prompt: string): Promise<void> {
+async function submit(env: Env, run: Run, call: CallState, prompt: string, label: string): Promise<void> {
   const cred = await credentialFor(env, call.agentId);
   // Derived from stored state: an automatic retry of the same submit reuses the id, so the agent
   // sees the same message and bills once. A deliberate resubmit gets a new suffix.
   await env.DB.prepare(
     `INSERT OR IGNORE INTO agent_calls (id, run_id, role, agent_id, label, state, created_at) VALUES (?, ?, ?, ?, ?, 'submitted', ?)`,
   )
-    .bind(call.callId, run.id, call.role, call.agentId, call.role.startsWith('scout_') ? `${run.questions.length} questions` : 'profiles', now())
+    .bind(call.callId, run.id, call.role, call.agentId, label, now())
     .run();
   const snap = await submitTask(cred, { messageId: call.callId, text: prompt });
   if (!snap.taskId) throw new A2AError(`${cred.label} accepted the task but returned no task id.`, false);
@@ -182,19 +185,20 @@ async function driveCall(
   env: Env,
   run: Run,
   bag: Bag,
-  opts: { role: Role; agentId: string; prompt: string; name: string; giveUp: string },
+  opts: { role: Role; key?: string; agentId: string; prompt: string; label: string; name: string; giveUp: string },
 ): Promise<Drive> {
-  let call = bag.calls[opts.role];
+  const key = opts.key ?? opts.role;
+  let call = bag.calls[key];
   if (!call) {
-    call = { role: opts.role, agentId: opts.agentId, callId: callIdFor(run, opts.role, 0), taskId: null, polls: 0, emptyPolls: 0, resubmits: 0, status: 'pending' };
-    bag.calls[opts.role] = call;
+    call = { role: opts.role, agentId: opts.agentId, callId: callIdFor(run, key, 0), taskId: null, polls: 0, emptyPolls: 0, resubmits: 0, status: 'pending' };
+    bag.calls[key] = call;
   }
   if (call.status !== 'pending') return 'settled';
 
   let outcome: { text: string } | { failed: string } | null;
   try {
     if (!call.taskId) {
-      await submit(env, run, call, opts.prompt);
+      await submit(env, run, call, opts.prompt, opts.label);
       call.errors = 0;
       return 'pending';
     }
@@ -218,7 +222,7 @@ async function driveCall(
     .run();
   if (call.resubmits < 1) {
     const resubmits = call.resubmits + 1;
-    bag.calls[opts.role] = { ...call, callId: callIdFor(run, opts.role, resubmits), taskId: null, polls: 0, emptyPolls: 0, errors: 0, resubmits, submittedAt: undefined };
+    bag.calls[key] = { ...call, callId: callIdFor(run, key, resubmits), taskId: null, polls: 0, emptyPolls: 0, errors: 0, resubmits, submittedAt: undefined };
     await addEvent(env, run.id, `${opts.name}'s turn ${outcome.failed}. Sending it once more.`);
     return 'pending';
   }
@@ -231,58 +235,82 @@ async function driveCall(
 
 type StepResult = { next?: Step; wait?: number };
 
+/** The scout turns for one engine: the questions in batches, or one legacy turn for runs started before batching. */
+export function scoutBatches(run: Run, bag: Bag, role: Role): { key: string; questions: string[] }[] {
+  if (bag.calls[role]) return [{ key: role, questions: run.questions }];
+  const batches = [];
+  for (let i = 0; i < run.questions.length; i += QUESTIONS_PER_TURN) {
+    batches.push({ key: `${role}.b${batches.length}`, questions: run.questions.slice(i, i + QUESTIONS_PER_TURN) });
+  }
+  return batches;
+}
+
 async function stepAsk(env: Env, run: Run, bag: Bag): Promise<StepResult> {
   const roles = await roleMap(env);
+  let finished = 0;
   // Every engine moves forward on its own in the same tick: a slow or broken one never blocks the rest.
+  // Within one engine the batches go one after another, so an agent only ever has one turn open.
   const states = await Promise.all(
-    run.engines.map(async (engine) => {
+    run.engines.map(async (engine): Promise<'pending' | 'settled'> => {
       const role = scoutRole(engine);
-      const existing = bag.calls[role];
-      if (!existing) {
-        const agentId = roles[role];
-        if (!agentId) {
-          await addEvent(env, run.id, `No agent is assigned as the ${engine} scout, so that engine is skipped.`);
-          bag.calls[role] = { role, agentId: '', callId: '', taskId: null, polls: 0, emptyPolls: 0, resubmits: 0, status: 'failed' };
-          return 'settled';
-        }
+      const batches = scoutBatches(run, bag, role);
+      const next = batches.findIndex((b) => !bag.calls[b.key] || bag.calls[b.key]!.status === 'pending');
+      if (next === -1) {
+        finished += 1;
+        return 'settled';
       }
+      const { key, questions } = batches[next];
+      const existing = bag.calls[key];
+      const agentId = existing?.agentId ?? roles[role];
+      if (!agentId) {
+        await addEvent(env, run.id, `No agent is assigned as the ${engine} scout, so that engine is skipped.`);
+        for (const b of batches) bag.calls[b.key] ??= { role, agentId: '', callId: '', taskId: null, polls: 0, emptyPolls: 0, resubmits: 0, status: 'failed' };
+        finished += 1;
+        return 'settled';
+      }
+      const part = batches.length > 1 ? ` (batch ${next + 1} of ${batches.length})` : '';
       const drive = await driveCall(env, run, bag, {
         role,
-        agentId: existing?.agentId ?? roles[role]!,
-        prompt: scoutPrompt(run.questions),
-        name: `The ${engine} scout`,
-        giveUp: 'Going on without it.',
+        key,
+        agentId,
+        prompt: scoutPrompt(questions),
+        label: `${questions.length} questions`,
+        name: `The ${engine} scout${part}`,
+        giveUp: next + 1 < batches.length ? 'Going on with the next batch.' : 'Going on without it.',
       });
-      if (!existing && bag.calls[role]?.taskId) {
-        await addEvent(env, run.id, `Sent ${run.questions.length} buying ${run.questions.length === 1 ? 'question' : 'questions'} to the ${engine} scout.`);
+      if (!existing && bag.calls[key]?.taskId) {
+        await addEvent(env, run.id, `Sent ${questions.length} buying ${questions.length === 1 ? 'question' : 'questions'} to the ${engine} scout${part}.`);
       }
-      if (typeof drive === 'string') return drive;
-      const call = bag.calls[role]!;
-      try {
-        const parsed = scoutSchema.parse(extractJson(drive.text));
-        const { answers, dropped } = acceptAnswers(engine, run.questions, parsed.answers);
-        await insertAnswers(env, run.id, answers);
-        call.status = 'done';
-        const cited = answers.reduce((n, a) => n + a.cited.length, 0);
-        await addEvent(
-          env,
-          run.id,
-          `The ${engine} scout answered ${answers.length} of ${run.questions.length} questions with ${cited} citations.` +
-            (dropped ? ` Code dropped ${dropped} cited ${dropped === 1 ? 'URL' : 'URLs'} that its own search never returned.` : ''),
-        );
-      } catch (error) {
-        call.status = 'failed';
-        await callError(env, call, problemText(error));
-        await addEvent(env, run.id, `The ${engine} scout's reply could not be read (${problemText(error).slice(0, 140)}).`);
+      if (drive === 'pending') return 'pending';
+      if (drive !== 'settled') {
+        const call = bag.calls[key]!;
+        try {
+          const parsed = scoutSchema.parse(extractJson(drive.text));
+          const { answers, dropped } = acceptAnswers(engine, questions, parsed.answers);
+          await insertAnswers(env, run.id, answers);
+          call.status = 'done';
+          const cited = answers.reduce((n, a) => n + a.cited.length, 0);
+          await addEvent(
+            env,
+            run.id,
+            `The ${engine} scout answered ${answers.length} of ${questions.length} questions${part} with ${cited} citations.` +
+              (dropped ? ` Code dropped ${dropped} cited ${dropped === 1 ? 'URL' : 'URLs'} that its own search never returned.` : ''),
+          );
+        } catch (error) {
+          call.status = 'failed';
+          await callError(env, call, problemText(error));
+          await addEvent(env, run.id, `The ${engine} scout's reply${part} could not be read (${problemText(error).slice(0, 140)}).`);
+        }
       }
+      // More batches left for this engine: the next one is submitted on the next tick.
+      if (next + 1 < batches.length) return 'pending';
+      finished += 1;
       return 'settled';
     }),
   );
-  const pending = states.includes('pending');
-  const progress = Object.values(bag.calls).filter((c) => c && c.status !== 'pending').length;
-  await updateRun(env, run.id, { stepDetail: `${progress} of ${run.engines.length} engines finished` });
-  if (pending) return { wait: 15_000 };
-  if (!Object.values(bag.calls).some((c) => c?.status === 'done')) throw new FatalError('No engine returned usable answers.');
+  await updateRun(env, run.id, { stepDetail: `${finished} of ${run.engines.length} engines finished` });
+  if (states.includes('pending')) return { wait: 15_000 };
+  if (!Object.entries(bag.calls).some(([key, c]) => key.startsWith('scout_') && c?.status === 'done')) throw new FatalError('No engine returned usable answers.');
   return { next: 'score' };
 }
 
@@ -386,6 +414,7 @@ async function stepProfile(env: Env, run: Run, bag: Bag): Promise<StepResult> {
     role: 'profiler',
     agentId: existing?.agentId ?? roles.profiler!,
     prompt: profilePrompt(leads.map((l) => l.domain)),
+    label: 'profiles',
     name: 'The profiler',
     giveUp: 'The drafts will go to a role.',
   });
