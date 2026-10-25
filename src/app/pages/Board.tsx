@@ -3,7 +3,8 @@
 import { useState, type CSSProperties } from 'react';
 import { VERTICALS, VERTICAL_LABEL, type EngineState, type Run, type Vertical } from '../../shared/engine';
 import { api, ApiError } from '../api';
-import { ago, EngineBar, EngineTag, SourceMark } from '../ui';
+import SiteDrawer from '../components/SiteDrawer';
+import { ago, EngineBar, EngineTag, Icon, SourceMark } from '../ui';
 
 const remembered = (): Vertical => {
   try {
@@ -19,6 +20,7 @@ export default function Board(props: { engine: EngineState; admin: boolean; onSt
   const [vertical, setVertical] = useState<Vertical>(remembered);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [open, setOpen] = useState<string | null>(null);
   const board = props.engine.boards.find((b) => b.vertical === vertical);
   const rows = board?.rows ?? [];
   const perEngine = board ? board.questions : 15;
@@ -94,19 +96,22 @@ export default function Board(props: { engine: EngineState; admin: boolean; onSt
         {!board ? (
           <p className="empty">No run for this vertical yet.</p>
         ) : (
-          <ol className="board big" key={board.runId}>
+          <ol className="board big pick" key={board.runId}>
             {rows.map((r, i) => (
               <li key={r.domain} className={r.publisher === false ? 'off' : ''} style={{ '--i': i } as CSSProperties}>
-                <span className="rk">{i + 1}</span>
-                <a className="d" href={`#report/${board.runId}/${r.domain}`}>
-                  {r.domain}
-                  <SourceMark verified={r.verified} />
-                </a>
-                <EngineBar byEngine={r.byEngine} engines={board.engines} max={perEngine * board.engines.length} />
-                <span className="n">
-                  {r.answers}
-                  <small>/{board.total}</small>
-                </span>
+                <button type="button" className="b-row" aria-haspopup="dialog" aria-expanded={open === r.domain} onClick={() => setOpen(r.domain)}>
+                  <span className="rk">{i + 1}</span>
+                  <span className="d">
+                    {r.domain}
+                    <SourceMark verified={r.verified} />
+                  </span>
+                  <EngineBar byEngine={r.byEngine} engines={board.engines} max={perEngine * board.engines.length} />
+                  <span className="n">
+                    {r.answers}
+                    <small>/{board.total}</small>
+                  </span>
+                  <Icon name="chevron" className="b-go" />
+                </button>
               </li>
             ))}
           </ol>
@@ -116,10 +121,11 @@ export default function Board(props: { engine: EngineState; admin: boolean; onSt
         <p className="muted small src-legend">
           <SourceMark verified /> code opened a cited page and it covers the question · <SourceMark verified={false} /> the site blocks
           automated checks. Pages that are gone or off topic are left out of the counts ({props.engine.sources.dropped} so far, of{' '}
-          {props.engine.sources.ok + props.engine.sources.dropped + props.engine.sources.blocked} checked). Open any site for its report.{' '}
+          {props.engine.sources.ok + props.engine.sources.dropped + props.engine.sources.blocked} checked). Pick any site to see the pages AI read.{' '}
           <a href={`#run/${board.runId}`}>See how this run went</a>.
         </p>
       )}
+      {board && open && <SiteDrawer runId={board.runId} domain={open} fullReport onClose={() => setOpen(null)} />}
     </div>
   );
 }

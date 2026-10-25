@@ -1,16 +1,19 @@
 /** The hook: the page a publisher receives. Their AI answer share, the pages AI read, who else gets cited. */
 
 import { useEffect, useState } from 'react';
-import { AI_AGENTS, ENGINE_LABEL, VERTICAL_LABEL, type CheckMiss, type PageVerdict, type SiteFacts, type SiteReport } from '../../shared/engine';
+import { AI_AGENTS, ENGINE_LABEL, VERTICAL_LABEL, type CheckMiss, type SiteFacts, type SiteReport } from '../../shared/engine';
 import { api } from '../api';
-import { EngineBar, EngineTag, PageSkeleton, SourceMark, VerdictTag } from '../ui';
+import SiteDrawer from '../components/SiteDrawer';
+import { EngineBar, EngineTag, Icon, PageSkeleton, SourceMark, VerdictTag } from '../ui';
 
 export default function Report(props: { runId: string; domain: string }) {
   const [report, setReport] = useState<SiteReport | null>(null);
   const [error, setError] = useState('');
+  const [open, setOpen] = useState<string | null>(null);
 
   useEffect(() => {
     setReport(null);
+    setOpen(null);
     api<SiteReport>(`/api/engine/runs/${encodeURIComponent(props.runId)}/report/${encodeURIComponent(props.domain)}`)
       .then(setReport)
       .catch((err) => setError(err instanceof Error ? err.message : String(err)));
@@ -66,25 +69,25 @@ export default function Report(props: { runId: string; domain: string }) {
               <EngineTag key={e} engine={e} />
             ))}
           </div>
-          <ol className="board">
-            {report.board.map((r) => (
+          <ol className="board pick">
+            {(report.board.some((r) => r.domain === report.domain)
+              ? report.board
+              : [...report.board, { domain: report.domain, byEngine: report.row?.byEngine ?? {}, answers, verified: report.row?.verified }]
+            ).map((r) => (
               <li key={r.domain} className={r.domain === report.domain ? 'you' : ''}>
-                <span className="d">
-                  {r.domain}
-                  <SourceMark verified={r.verified} />
-                </span>
-                <EngineBar byEngine={r.byEngine} engines={report.engines} max={max} />
-                <span className="n">{r.answers}</span>
+                <button type="button" className="b-row" aria-haspopup="dialog" aria-expanded={open === r.domain} onClick={() => setOpen(r.domain)}>
+                  <span className="d">
+                    {r.domain}
+                    <SourceMark verified={r.verified} />
+                  </span>
+                  <EngineBar byEngine={r.byEngine} engines={report.engines} max={max} />
+                  <span className="n">{r.answers}</span>
+                  <Icon name="chevron" className="b-go" />
+                </button>
               </li>
             ))}
-            {!report.board.some((r) => r.domain === report.domain) && (
-              <li className="you">
-                <span className="d">{report.domain}</span>
-                <EngineBar byEngine={report.row?.byEngine ?? {}} engines={report.engines} max={max} />
-                <span className="n">{answers}</span>
-              </li>
-            )}
           </ol>
+          <p className="muted small pick-hint">Pick any site to see the pages AI agents read and the questions it was cited for.</p>
         </section>
 
         <section className="panel">
@@ -117,40 +120,6 @@ export default function Report(props: { runId: string; domain: string }) {
         </section>
       </div>
 
-      {report.pages.length > 0 && (
-        <section className="panel">
-          <h2>Your pages AI agents read</h2>
-          <ul className="links">
-            {report.pages.slice(0, 12).map((u) => (
-              <li key={u} className="page-check">
-                <a href={u} target="_blank" rel="noreferrer">
-                  {u}
-                </a>
-                <PageVerdictTag verdict={report.pageVerdicts[u]} />
-              </li>
-            ))}
-          </ul>
-          <h3>Questions where you were cited</h3>
-          <ul className="links">
-            {report.queries.map((q) => (
-              <li key={q}>{q}</li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      <section className="panel callout-panel">
-        <h2>This is the view from outside</h2>
-        <p>
-          Each citation is an AI agent that fetched your page to answer someone about to buy. Your analytics don’t show those visits.
-          Blankspace analytics is free and shows the real number: every AI request, by agent and by page, and what that audience is worth.
-        </p>
-        <p className="muted small">
-          Method: {report.total} answers from {report.engines.length} AI {report.engines.length === 1 ? 'engine' : 'engines'} with live web search,
-          asked as a UK shopper. Answers vary by assistant and by day, so this is a sample, not your server logs.
-        </p>
-      </section>
-
       {report.lead && (
         <section className="panel">
           <h2>For the Blankspace team</h2>
@@ -168,15 +137,10 @@ export default function Report(props: { runId: string; domain: string }) {
           <a href="#leads">Open the draft email</a>
         </section>
       )}
+
+      {open && <SiteDrawer runId={report.runId} domain={open} fullReport={open !== report.domain} onClose={() => setOpen(null)} />}
     </article>
   );
-}
-
-function PageVerdictTag({ verdict }: { verdict?: PageVerdict }) {
-  if (verdict === 'ok') return <span className="tag t-eng">Checked: live, on topic</span>;
-  if (verdict === 'blocked') return <span className="tag t-watch">Site blocks checks</span>;
-  if (verdict) return <span className="tag t-err">{verdict === 'dead' ? 'Gone, not counted' : 'Off topic, not counted'}</span>;
-  return <span className="tag t-mute">Not checked yet</span>;
 }
 
 const MISS_TEXT: Record<CheckMiss, string> = {
