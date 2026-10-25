@@ -257,8 +257,8 @@ const KEY: [Verdict, string][] = [
 
 const REVIEW_KEY: [LeadReview['decision'], string][] = [
   ['pass', 'A second agent passed all three checks, each backed by a quote found on the page.'],
-  ['reject', 'A second agent showed, with a quote, it is not a fit. Kept at the bottom.'],
-  ['unsure', 'The second agent could not tell, or its quote was not on the page. A person decides.'],
+  ['reject', 'A second agent showed, with a quote, it is not a publisher or the page does not answer. Kept at the bottom.'],
+  ['unsure', 'Could not tell, its quote was not on the page, or the contact is wrong. A person decides.'],
 ];
 
 function LeadRow(props: { lead: Lead; tour: boolean; open: boolean; onToggle: () => void; admin: boolean; needPassword: () => void; onUpdate: (patch: Partial<Lead>) => void }) {

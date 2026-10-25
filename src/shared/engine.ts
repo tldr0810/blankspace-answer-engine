@@ -337,7 +337,7 @@ export interface ReviewCheck {
   quoteCheck: 'on_page' | 'not_on_page' | 'unreadable' | null;
 }
 
-/** pass: every check is yes. reject: a check is no, backed by a quote. unsure: a person decides. Code sets this from the checks, not the agent. */
+/** pass: every check is yes. reject: publisher or page is no, backed by a quote. unsure: a person decides, a wrong contact included. Code sets this from the checks, not the agent. */
 export type ReviewDecision = 'pass' | 'reject' | 'unsure';
 
 export interface LeadReview {
