@@ -46,6 +46,9 @@ import {
   runLeads,
   saveFacts,
   saveReview,
+  saveSiteRule,
+  siteRules,
+  personCalls,
   saveState,
   siteFacts,
   updateRun,
@@ -348,7 +351,14 @@ async function stepScore(env: Env, run: Run, bag: Bag): Promise<StepResult> {
     bag.candidates = [run.domain!];
   } else {
     const limit = run.kind === 'question' ? 8 : LEADS_PER_VERTICAL * 2;
-    bag.candidates = rows.filter((r) => !listedNonPublisher(r.domain) && !foreignSite(r.domain)).slice(0, limit).map((r) => r.domain);
+    // Sites a person or the verifier ruled out on an earlier run are not checked again.
+    const rules = await siteRules(env);
+    const ruledOut = rows.filter((r) => rules.get(r.domain)?.rule === 'not_publisher').length;
+    bag.candidates = rows
+      .filter((r) => !listedNonPublisher(r.domain) && !foreignSite(r.domain) && rules.get(r.domain)?.rule !== 'not_publisher')
+      .slice(0, limit)
+      .map((r) => r.domain);
+    if (ruledOut) await addEvent(env, run.id, `Skipped ${ruledOut} ${ruledOut === 1 ? 'site' : 'sites'} an earlier review ruled out as not a publisher.`);
   }
   bag.enriched = 0;
   await addEvent(env, run.id, `Counted ${total} answers citing ${rows.length} different sites. Checking ${bag.candidates.length} of them.`);
@@ -367,12 +377,12 @@ async function stepEnrich(env: Env, run: Run, bag: Bag): Promise<StepResult> {
 
   if (run.kind === 'question') return { next: 'done' };
 
-  const facts = await siteFacts(env, bag.candidates);
+  const [facts, rules] = await Promise.all([siteFacts(env, bag.candidates), siteRules(env)]);
   const scored = bag.candidates
     .map((d) => {
       const row = byDomain.get(d);
       const f = facts.get(d) ?? null;
-      return { domain: d, row, facts: f, score: scoreSite(row?.answers ?? 0, total, f), publisher: isPublisher(d, f) };
+      return { domain: d, row, facts: f, score: scoreSite(row?.answers ?? 0, total, f), publisher: isPublisher(d, f, rules.get(d)?.rule) };
     })
     .filter((c) => run.kind === 'site' || c.publisher)
     .sort((a, b) => b.score - a.score)
@@ -529,6 +539,7 @@ async function stepReview(env: Env, run: Run, bag: Bag): Promise<StepResult> {
       return { next: 'draft' };
     }
   }
+  const pastCalls = existing ? [] : await personCalls(env, 8);
   const outcome = await driveCall(env, run, bag, {
     role: 'verifier',
     agentId: existing?.agentId ?? roles.verifier!,
@@ -548,6 +559,7 @@ async function stepReview(env: Env, run: Run, bag: Bag): Promise<StepResult> {
         page: l.pages[0] ?? null,
         questions: l.queries.slice(0, 3),
       })),
+      pastCalls,
     ),
     label: 'reviews',
     name: 'The verifier',
@@ -609,6 +621,11 @@ async function stepReview(env: Env, run: Run, bag: Bag): Promise<StepResult> {
       if (!change && lead.verdict === 'verified' && contact?.answer === 'no' && contact.quoteCheck === 'on_page') {
         await patchLead(env, lead.id, { verdict: 'not_found', verifyNote: `The verifier found ${lead.contactName} may no longer hold this role: ${contact.note}` });
         change = `Held back ${lead.contactName}: may no longer hold the role. The email goes to the role.`;
+      }
+      // A publisher check answered no, with a quote found on the page, is remembered for later runs.
+      const publisher = settled.checks.find((c) => c.key === 'publisher');
+      if (publisher?.answer === 'no' && publisher.quoteCheck === 'on_page') {
+        await saveSiteRule(env, { domain: lead.domain, rule: 'not_publisher', by: 'verifier', reason: publisher.note || 'The verifier found it is not a publisher.', at: now() });
       }
       await saveReview(env, lead.id, { ...settled, change });
       counts[settled.decision] += 1;

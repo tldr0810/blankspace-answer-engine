@@ -63,3 +63,38 @@ describe('verifier prompt and reply', () => {
     expect(parsed.sites[0].better_contact?.name).toBe('Jane Doe');
   });
 });
+
+import { isPublisher, leadOutcome, signalStats, verifierRecord } from '../src/worker/engine/logic';
+import type { LeadReview } from '../src/shared/engine';
+
+describe('learning', () => {
+  const facts = { domain: 'a.co.uk', reachable: true, cdn: 'Cloudflare', affiliate: true, adsTxtLines: 10, robots: {}, checkedAt: 't' };
+  it('lets a remembered rule beat the guess from site checks', () => {
+    expect(isPublisher('a.co.uk', facts, 'not_publisher')).toBe(false);
+    expect(isPublisher('a.co.uk', { ...facts, adsTxtLines: 0, affiliate: false }, 'publisher')).toBe(true);
+    expect(isPublisher('a.co.uk', facts)).toBe(true);
+  });
+  it('reads a person call before the lead status', () => {
+    const review = (call: 'fit' | 'not_publisher'): LeadReview => ({ decision: 'pass', checks: [], change: null, reviewedAt: 't', person: { call, note: null, at: 't' } });
+    expect(leadOutcome({ status: 'approved', review: review('not_publisher') })).toBe(false);
+    expect(leadOutcome({ status: 'skipped', review: null })).toBe(false);
+    expect(leadOutcome({ status: 'draft', review: null })).toBe(null);
+  });
+  it('compares approvals with and without each signal', () => {
+    const lead = (status: 'approved' | 'skipped', affiliate: boolean) => ({ status, review: null, answers: 1, total: 10, facts: { ...facts, affiliate } });
+    const { decided, signals } = signalStats([lead('approved', true), lead('approved', true), lead('skipped', false), { ...lead('approved', false), status: 'draft' as const }]);
+    expect(decided).toBe(3);
+    const aff = signals.find((s) => s.key === 'affiliate')!;
+    expect([aff.withYes, aff.withN, aff.withoutYes, aff.withoutN]).toEqual([2, 2, 0, 1]);
+  });
+  it('counts verifier calls people overturned', () => {
+    const r = (decision: LeadReview['decision'], call?: 'fit' | 'not_publisher'): LeadReview => ({
+      decision,
+      checks: [{ key: 'page', answer: 'yes', note: '', url: null, quote: null, quoteCheck: null }],
+      change: null,
+      reviewedAt: 't',
+      ...(call ? { person: { call, note: null, at: 't' } } : {}),
+    });
+    expect(verifierRecord([r('pass', 'not_publisher'), r('reject', 'not_publisher'), r('unsure', 'fit'), r('pass')])).toEqual({ reviewed: 4, pass: 2, reject: 1, unsure: 1, called: 2, overturned: 1 });
+  });
+});

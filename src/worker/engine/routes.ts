@@ -9,6 +9,8 @@
  *   GET   /runs/:id/report/:domain       a site's AI Answer Share report
  *   GET   /leads                         every run's leads, one per site
  *   PATCH /leads/:id                     { email?, status? } edit or approve a draft
+ *   POST  /leads/:id/call                { call, note? } a person's call on a lead, remembered for later runs
+ *   GET   /learning                      what the flow has learned from its checks and from people
  *   PUT   /roles                         { role, agentId|null } assign an agent to a role
  *   POST  /autopilot                     start the next vertical in rotation if one is due (Manyfold automation)
  *   PUT   /autopilot                     { enabled } pause or resume it
@@ -17,9 +19,12 @@
 import { joinEmail, splitEmail } from '../../shared/email';
 import { Hono } from 'hono';
 import {
+  PERSON_CALLS,
   ROLES,
   VERTICALS,
   type EngineState,
+  type Learning,
+  type PersonCall,
   type Lead,
   type Role,
   type RunDetail,
@@ -30,15 +35,19 @@ import {
 } from '../../shared/engine';
 import { HttpError, type Env } from '../types';
 import { autopilotTick, loadAutopilot, saveAutopilot } from './autopilot';
-import { normalizeDomain } from './logic';
+import { DECISIONS_NEEDED, normalizeDomain, signalStats, verifierRecord } from './logic';
 import { newRun } from './runner';
 import { ensureSeed } from './seed';
 import {
   activeRuns,
   addEvent,
   boardFor,
+  flowCounts,
+  getLead,
   getRun,
   insertRun,
+  saveReview,
+  saveSiteRule,
   latestVerticalRuns,
   listCalls,
   listEvents,
@@ -52,6 +61,7 @@ import {
   runsSince,
   setRole,
   siteFacts,
+  siteRules,
   sourceTotals,
 } from './store';
 import { tickerFor } from './ticker';
@@ -236,6 +246,41 @@ export function engineRoutes(adminOk: AdminCheck) {
       status: status as 'draft' | 'approved' | 'skipped' | undefined,
     });
     return c.json({ ok: true });
+  });
+
+  app.post('/leads/:id/call', async (c) => {
+    requireAdmin(c);
+    const body = (await c.req.json().catch(() => null)) as { call?: unknown; note?: unknown } | null;
+    const call = String(body?.call ?? '') as PersonCall;
+    if (!(PERSON_CALLS as readonly string[]).includes(call)) throw new HttpError(400, 'bad_request', `call must be one of ${PERSON_CALLS.join(', ')}.`);
+    const note = typeof body?.note === 'string' && body.note.trim() ? body.note.trim().slice(0, 300) : null;
+    const lead = await getLead(c.env, c.req.param('id'));
+    if (!lead) throw new HttpError(404, 'not_found', 'No such lead.');
+    const at = new Date().toISOString();
+    const review = { ...(lead.review ?? { decision: 'unsure' as const, checks: [], change: null, reviewedAt: at }), person: { call, note, at } };
+    await saveReview(c.env, lead.id, review);
+    // The call outlives this lead: the next runs skip a ruled-out site, or keep one the verifier doubted.
+    if (call !== 'wrong_contact') {
+      await saveSiteRule(c.env, { domain: lead.domain, rule: call === 'fit' ? 'publisher' : 'not_publisher', by: 'person', reason: note ?? (call === 'fit' ? 'A person called it a good fit.' : 'A person called it not a publisher.'), at });
+    } else if (lead.verdict === 'verified') {
+      await patchLead(c.env, lead.id, { verdict: 'not_found', verifyNote: `A person marked ${lead.contactName ?? 'this contact'} as the wrong contact${note ? `: ${note}` : '.'}` });
+    }
+    const updated = await getLead(c.env, lead.id);
+    return c.json({ lead: updated });
+  });
+
+  app.get('/learning', async (c) => {
+    const [rules, counts, leads] = await Promise.all([siteRules(c.env), flowCounts(c.env), bestLeads(c.env)]);
+    const { decided, signals } = signalStats(leads);
+    const learning: Learning = {
+      rules: [...rules.values()].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 20),
+      profiler: { suggested: counts.suggested, confirmed: counts.confirmed },
+      verifier: verifierRecord(counts.reviews),
+      decided,
+      needed: DECISIONS_NEEDED,
+      signals,
+    };
+    return c.json(learning);
   });
 
   app.put('/roles', async (c) => {

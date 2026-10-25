@@ -302,6 +302,47 @@ export interface LeadReview {
   /** What the verifier changed, already checked by code: a contact it found, or a name it showed is out of date. */
   change: string | null;
   reviewedAt: string;
+  /** A person's call on the lead. It overrides the verifier and teaches the next runs. */
+  person?: { call: PersonCall; note: string | null; at: string };
+}
+
+export const PERSON_CALLS = ['fit', 'not_publisher', 'wrong_contact'] as const;
+export type PersonCall = (typeof PERSON_CALLS)[number];
+export const PERSON_CALL_LABEL: Record<PersonCall, string> = { fit: 'Good fit', not_publisher: 'Not a publisher', wrong_contact: 'Wrong contact' };
+
+/** The decision that counts: a person's call when there is one, else the verifier's. */
+export const finalDecision = (review: LeadReview | null): ReviewDecision | null =>
+  !review ? null : review.person ? (review.person.call === 'fit' ? 'pass' : 'reject') : review.decision;
+
+/** What the flow remembers about a site between runs. A person's rule beats the verifier's. */
+export interface SiteRule {
+  domain: string;
+  rule: 'publisher' | 'not_publisher';
+  by: 'verifier' | 'person';
+  reason: string;
+  at: string;
+}
+
+/** One signal the score uses, and how often leads with and without it were approved. */
+export interface SignalStat {
+  key: 'share' | 'adsTxt' | 'affiliate' | 'cdn';
+  label: string;
+  points: number;
+  withYes: number;
+  withN: number;
+  withoutYes: number;
+  withoutN: number;
+}
+
+/** What the flow has learned from its own checks and from people's decisions. */
+export interface Learning {
+  rules: SiteRule[];
+  profiler: { suggested: number; confirmed: number };
+  verifier: { reviewed: number; pass: number; reject: number; unsure: number; called: number; overturned: number };
+  decided: number;
+  /** Decisions needed before the signal rates mean anything. */
+  needed: number;
+  signals: SignalStat[];
 }
 
 export interface VerticalBoard {

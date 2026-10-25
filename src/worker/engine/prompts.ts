@@ -105,7 +105,7 @@ export interface ReviewInput {
  * The verifier reviews another agent's leads, the way a maintainer reviews a collector's records:
  * a fixed checklist, a source and a word-for-word quote for every answer, and unsure over a guess.
  */
-export function verifierPrompt(leads: ReviewInput[]): string {
+export function verifierPrompt(leads: ReviewInput[], pastCalls: { domain: string; call: string; note: string | null }[] = []): string {
   return [
     'You are the verifier for Blankspace, which helps publishers see and earn from the AI agents that read their pages. Another agent found the leads below and suggested who to contact. You did not make them; your job is to check them before a person writes to anyone.',
     '',
@@ -120,6 +120,13 @@ export function verifierPrompt(leads: ReviewInput[]): string {
     '- If the contact is wrong, missing a name, or out of date and you can find the right person on a public page, give them in "better_contact" with that page URL. Code will check their name is on it. Never guess a name or an email address.',
     '- Work fast: use web search and open at most four pages per site.',
     '',
+    ...(pastCalls.length
+      ? [
+          'Calls the Blankspace team made on earlier leads. Judge the same way:',
+          ...pastCalls.map((c) => `- ${c.domain}: ${c.call.replace('_', ' ')}${c.note ? ` (${c.note})` : ''}`),
+          '',
+        ]
+      : []),
     'Leads:',
     ...leads.map((l, i) =>
       [

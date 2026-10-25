@@ -999,3 +999,21 @@ button:active:not(:disabled):not(.primary), .button:active:not(.primary) { trans
 .review-checks .a-no .rc-head b { color: var(--you); }
 .review-checks .a-unsure .rc-head b { color: var(--watch); }
 .review-checks q { font-style: italic; quotes: '“' '”'; }
+.call-row { gap: 6px; }
+
+/* How it works: what the flow has learned. */
+.learn > p { margin: 6px 0 0; max-width: 72ch; }
+.learn-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 24px; margin-top: 16px; }
+.learn-grid > div { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.learn-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.learn-list li { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.learn-stats { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.learn-stats dt { font-size: 12px; color: var(--ink3); }
+.learn-stats dd { margin: 0; font-size: 13.5px; }
+.learn-stats b { font-size: 18px; font-weight: 800; }
+.learn-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.learn-table th { text-align: left; font-size: 11px; font-weight: 700; color: var(--ink3); text-transform: uppercase; letter-spacing: 0.04em; padding: 0 6px 6px 0; }
+.learn-table td { padding: 5px 6px 5px 0; border-top: 1.5px dashed var(--hair); }
+@media (max-width: 900px) {
+  .learn-grid { grid-template-columns: 1fr; }
+}

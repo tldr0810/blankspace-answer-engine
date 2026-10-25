@@ -176,6 +176,15 @@ CREATE TABLE IF NOT EXISTS leads (
   updated_at         TEXT NOT NULL
 );
 
+-- What the flow remembers about a site between runs (from the verifier or a person).
+CREATE TABLE IF NOT EXISTS site_rules (
+  domain     TEXT PRIMARY KEY,
+  rule       TEXT NOT NULL,
+  made_by    TEXT NOT NULL,
+  reason     TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
 -- The verifier agent's review of a lead, after code checked its quotes (LeadReview as JSON).
 CREATE TABLE IF NOT EXISTS lead_reviews (
   lead_id     TEXT PRIMARY KEY,

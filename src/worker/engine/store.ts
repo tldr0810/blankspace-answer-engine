@@ -6,11 +6,13 @@
 import {
   ENGINES,
   ROLES,
+  finalDecision,
   scoutRole,
   type BoardRow,
   type Engine,
   type Lead,
   type LeadReview,
+  type SiteRule,
   type Role,
   type Run,
   type RunEvent,
@@ -235,10 +237,11 @@ export async function boardFor(
   const answers = await runAnswers(env, runId);
   const verdicts = await pageVerdicts(env, [...new Set(answers.flatMap((a) => a.cited))]);
   const rows = tally(withoutDropped(answers, verdicts));
-  const facts = await siteFacts(env, rows.slice(0, 40).map((r) => r.domain));
+  const [facts, rules] = await Promise.all([siteFacts(env, rows.slice(0, 40).map((r) => r.domain)), siteRules(env)]);
   for (const row of rows) {
     const f = facts.get(row.domain);
-    row.publisher = f ? isPublisher(row.domain, f) : listedNonPublisher(row.domain) ? false : null;
+    const rule = rules.get(row.domain)?.rule;
+    row.publisher = rule || f ? isPublisher(row.domain, f ?? null, rule) : listedNonPublisher(row.domain) ? false : null;
     row.verified = siteVerified(row.pages, verdicts);
   }
   return { rows, total: answers.length, questions: new Set(answers.map((a) => a.query)).size, verdicts };
@@ -347,7 +350,7 @@ export async function bestLeads(env: Env): Promise<Lead[]> {
   // Site facts are re-checked weekly, so score against the latest ones: the page shows how the number adds up.
   const leads = (await toLeads(env, picked)).map((l) => (l.facts ? { ...l, score: score(l.answers, l.total, l.facts) } : l));
   // A lead the verifier rejected goes to the bottom, where a person can still look at it.
-  const rejected = (l: Lead) => (l.review?.decision === 'reject' ? 1 : 0);
+  const rejected = (l: Lead) => (finalDecision(l.review) === 'reject' ? 1 : 0);
   return leads.sort((a, b) => rejected(a) - rejected(b) || b.score - a.score);
 }
 
@@ -395,6 +398,65 @@ async function leadReviews(env: Env, ids: string[]): Promise<Map<string, LeadRev
     }
   }
   return out;
+}
+
+/* ───────── what the flow remembers between runs ───────── */
+
+export async function siteRules(env: Env): Promise<Map<string, SiteRule>> {
+  const { results } = await env.DB.prepare('SELECT domain, rule, made_by, reason, created_at FROM site_rules').all<{
+    domain: string;
+    rule: SiteRule['rule'];
+    made_by: SiteRule['by'];
+    reason: string;
+    created_at: string;
+  }>();
+  return new Map((results ?? []).map((r) => [r.domain, { domain: r.domain, rule: r.rule, by: r.made_by, reason: r.reason, at: r.created_at }]));
+}
+
+/** Remembers a rule for a site. The verifier never replaces a person's rule. */
+export async function saveSiteRule(env: Env, rule: SiteRule): Promise<void> {
+  await env.DB.prepare(
+    `INSERT INTO site_rules (domain, rule, made_by, reason, created_at) VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT (domain) DO UPDATE SET rule = excluded.rule, made_by = excluded.made_by, reason = excluded.reason, created_at = excluded.created_at
+     WHERE excluded.made_by = 'person' OR site_rules.made_by = 'verifier'`,
+  )
+    .bind(rule.domain, rule.rule, rule.by, rule.reason.slice(0, 500), rule.at)
+    .run();
+}
+
+export async function getLead(env: Env, id: string): Promise<Lead | null> {
+  const row = await env.DB.prepare('SELECT * FROM leads WHERE id = ?').bind(id).first<LeadRow>();
+  return row ? (await toLeads(env, [row]))[0] : null;
+}
+
+/** The latest calls people made, for the verifier to learn from. */
+export async function personCalls(env: Env, limit: number): Promise<{ domain: string; call: string; note: string | null }[]> {
+  const { results } = await env.DB.prepare(
+    `SELECT l.domain, r.data FROM lead_reviews r JOIN leads l ON l.id = r.lead_id WHERE json_extract(r.data, '$.person') IS NOT NULL
+     ORDER BY json_extract(r.data, '$.person.at') DESC LIMIT ?`,
+  )
+    .bind(limit)
+    .all<{ domain: string; data: string }>();
+  return (results ?? []).flatMap((r) => {
+    const review = json<LeadReview | null>(r.data, null);
+    return review?.person ? [{ domain: r.domain, call: review.person.call, note: review.person.note }] : [];
+  });
+}
+
+/** Counts across every run, for the learning panel. */
+export async function flowCounts(env: Env): Promise<{ suggested: number; confirmed: number; reviews: LeadReview[] }> {
+  const [counts, reviews] = await Promise.all([
+    env.DB.prepare(`SELECT COUNT(contact_name) AS suggested, SUM(CASE WHEN verdict = 'verified' THEN 1 ELSE 0 END) AS confirmed FROM leads`).first<{
+      suggested: number;
+      confirmed: number | null;
+    }>(),
+    env.DB.prepare('SELECT data FROM lead_reviews').all<{ data: string }>(),
+  ]);
+  return {
+    suggested: counts?.suggested ?? 0,
+    confirmed: counts?.confirmed ?? 0,
+    reviews: (reviews.results ?? []).map((r) => json<LeadReview | null>(r.data, null)).filter((r): r is LeadReview => Boolean(r)),
+  };
 }
 
 export async function saveReview(env: Env, leadId: string, review: LeadReview): Promise<void> {
