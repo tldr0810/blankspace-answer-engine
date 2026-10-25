@@ -13,7 +13,7 @@ import { activeRuns, addEvent, insertRun, readyEngines } from './store';
 import { tickerFor } from './ticker';
 
 const KEY = 'autopilot';
-const DEFAULT: Autopilot = { enabled: true, next: 0, lastAt: null, lastRunId: null };
+const DEFAULT: Autopilot = { enabled: true, next: 0, lastAt: null, lastRunId: null, lastPingAt: null, lastPingResult: null };
 
 export async function loadAutopilot(env: Env): Promise<Autopilot> {
   try {
@@ -30,6 +30,14 @@ export type AutopilotOutcome =
   | { started: false; reason: 'paused' | 'no_engines' | 'running' | 'too_soon'; detail: string };
 
 export async function autopilotTick(env: Env): Promise<AutopilotOutcome> {
+  const outcome = await tryStart(env);
+  // Record every call, so Settings can tell "the automation stopped calling" from "it called and skipped".
+  const state = await loadAutopilot(env);
+  await saveAutopilot(env, { ...state, lastPingAt: new Date().toISOString(), lastPingResult: outcome.started ? 'started' : outcome.reason });
+  return outcome;
+}
+
+async function tryStart(env: Env): Promise<AutopilotOutcome> {
   const state = await loadAutopilot(env);
   if (!state.enabled) return { started: false, reason: 'paused', detail: 'Autopilot is paused in Settings.' };
   const engines = await readyEngines(env);
