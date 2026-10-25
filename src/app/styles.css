@@ -680,45 +680,7 @@ input[type='checkbox']:checked::after { scale: 1; }
 .changes li { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: start; }
 .changes .tag { justify-self: start; margin-top: -1px; }
 
-/* ── Start here: the first-visit tour (Tour.tsx) ── */
-.tour { position: fixed; right: 20px; bottom: 20px; z-index: 30; width: 340px; max-height: calc(100dvh - 100px); overflow-y: auto; background: var(--card); border: 2px solid var(--ink); border-radius: 18px; box-shadow: 5px 5px 0 var(--ink); padding: 16px 16px 14px; display: flex; flex-direction: column; gap: 12px; }
-.tour-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-.tour-head .eyebrow { color: var(--accent); }
-.tour-title { font-size: 19px; font-weight: 800; line-height: 23px; margin-top: 2px; }
-.tour-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-.tour-bar i { height: 6px; border-radius: 999px; background: var(--soft); border: 1px solid var(--hair); transition: background-color 0.3s; }
-.tour-bar i.on { background: var(--accent); border-color: var(--ink); }
-.tour-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-.tour-step { width: 100%; justify-content: flex-start; border: none; background: none; min-height: 38px; padding: 0 6px; border-radius: 10px; gap: 10px; font-weight: 600; text-align: left; }
-.tour-step:hover:not(:disabled) { background: var(--paper); }
-.tour-n { flex: 0 0 24px; width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid var(--hair); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: var(--ink3); background: var(--card); }
-.tour-steps li.cur .tour-n { border-color: var(--ink); color: var(--card); background: var(--ink); box-shadow: 2px 2px 0 var(--accent); }
-.tour-steps li.done .tour-n { border-color: var(--eng); background: var(--eng-bg); color: var(--eng); }
-.tour-steps li.done .tour-st { color: var(--ink3); text-decoration: line-through; text-decoration-color: var(--hair); }
-.tour-steps li.done.cur .tour-st { text-decoration: none; color: var(--ink); }
-.tour-steps .icon { stroke-width: 2.2; }
-.tour-body { margin: 2px 0 8px 40px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
-.tour-body p, .tour-end p { margin: 0; font-size: 13.5px; line-height: 20px; color: var(--ink2); }
-.tour-end { display: flex; flex-direction: column; gap: 12px; }
-.tour-live { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; background: var(--accent-soft); border: 1.5px solid var(--ink); border-radius: 14px; padding: 12px 14px; font-size: 13.5px; line-height: 20px; color: var(--ink2); }
-.tour-live b { color: var(--ink); }
-.tour-pill { position: fixed; right: 20px; bottom: 20px; z-index: 30; min-height: 44px; padding: 0 16px 0 7px; gap: 10px; box-shadow: 3px 3px 0 var(--ink); font-size: 13.5px; max-width: calc(100vw - 40px); }
-.tour-pill:hover:not(:disabled) { background: var(--card); translate: -1px -1px; box-shadow: 4px 4px 0 var(--ink); }
-.tour-pill-next { color: var(--ink3); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tour-pill-next::before { content: '·'; margin: 0 7px; color: var(--hair); }
-.tour-ring-mini { flex: 0 0 30px; width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; color: var(--ink); background: radial-gradient(var(--card) 58%, transparent 60%), conic-gradient(var(--accent) var(--p), var(--soft) 0); border: 1.5px solid var(--ink); }
-.tour-ring-mini .icon { stroke-width: 2.4; }
-.tour-pill.nudge { animation: tour-nudge 0.8s cubic-bezier(0.3, 1.6, 0.5, 1) 2; }
-@keyframes tour-nudge { 40% { translate: 0 -6px; box-shadow: 3px 9px 0 var(--accent); } }
-.tour-spot { position: fixed; z-index: 29; pointer-events: none; border: 3px solid var(--accent); border-radius: 16px; animation: tour-ring 1.6s ease-out infinite; }
-@keyframes tour-ring { 0% { box-shadow: 0 0 0 0 rgba(232, 98, 44, 0.5); } 70%, 100% { box-shadow: 0 0 0 16px rgba(232, 98, 44, 0); } }
 @media (min-width: 1181px) { .side-panel { max-height: calc(100vh - 100px - var(--tour-h, 0px)); } }
-.tour-tip { position: fixed; z-index: 31; max-width: 260px; background: var(--ink); color: var(--card); font-size: 13px; font-weight: 600; line-height: 18px; padding: 9px 13px; border-radius: 12px; box-shadow: 3px 3px 0 var(--accent); pointer-events: none; animation: tin 0.3s cubic-bezier(0.3, 1.5, 0.6, 1) both; }
-@media (max-width: 640px) {
-  .tour { left: 12px; right: 12px; bottom: 12px; width: auto; max-height: 62dvh; }
-  .tour-pill { right: 12px; bottom: 12px; max-width: calc(100vw - 24px); }
-  .toasts { right: 12px; bottom: calc(12px + var(--tour-h, 0px)); }
-}
 
 /* ═════════ Answer Share ═════════ */
 .logo-mark { width: 36px; height: 36px; flex: 0 0 36px; border-radius: 10px; background: var(--ink); color: var(--card); display: inline-flex; align-items: center; justify-content: center; font-family: var(--display); font-weight: 800; font-size: 20px; box-shadow: 2px 2px 0 var(--accent); }
@@ -1051,7 +1013,7 @@ button:active:not(:disabled):not(.primary), .button:active:not(.primary) { trans
 @keyframes tour-nudge { 40% { translate: 0 -6px; box-shadow: 3px 9px 0 var(--accent); } }
 .tour-spot { position: fixed; z-index: 29; pointer-events: none; border: 3px solid var(--accent); border-radius: 16px; animation: tour-ring 1.6s ease-out infinite; }
 @keyframes tour-ring { 0% { box-shadow: 0 0 0 0 rgba(232, 98, 44, 0.5); } 70%, 100% { box-shadow: 0 0 0 16px rgba(232, 98, 44, 0); } }
-.tour-tip { position: fixed; z-index: 31; max-width: 260px; background: var(--ink); color: var(--card); font-size: 13px; font-weight: 600; line-height: 18px; padding: 9px 13px; border-radius: 12px; box-shadow: 3px 3px 0 var(--accent); pointer-events: none; animation: tin 0.3s cubic-bezier(0.3, 1.5, 0.6, 1) both; }
+.tour-tip { position: fixed; z-index: 31; max-width: 260px; width: max-content; text-align: center; background: var(--ink); color: var(--card); font-size: 13px; font-weight: 600; line-height: 18px; padding: 9px 13px; border-radius: 12px; box-shadow: 3px 3px 0 var(--accent); pointer-events: none; animation: tin 0.3s cubic-bezier(0.3, 1.5, 0.6, 1) both; }
 /* The page leaves room at the bottom so the card never covers the last thing on it. */
 .page { padding-bottom: calc(40px + var(--tour-h, 0px)); }
 /* Docked in the sidebar on wide screens: same card, in the flow, scrolling if the window is short. */

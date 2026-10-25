@@ -8,6 +8,7 @@
  */
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from '../ui';
 
 export type TourStep = 'loop' | 'board' | 'review' | 'learn';
@@ -294,14 +295,28 @@ function Spotlight(props: { step: Spot; onClose: () => void }) {
 
   if (!rect) return null;
   const pad = 8;
-  const below = rect.bottom + 64 < window.innerHeight;
-  const tipLeft = Math.max(12, Math.min(rect.left, window.innerWidth - 272));
-  return (
+  const gap = 10;
+  const tipH = 44;
+  // Prefer above the ring, centred on it and clear of the sticky top bar, so the tip covers
+  // neither the rows under what to press nor the start of a heading; below when there is no
+  // room above; otherwise just inside the ring's top edge. The tip is at most 260px wide.
+  const above = rect.top - pad - gap - tipH > 72;
+  const below = !above && rect.bottom + pad + gap + tipH < window.innerHeight;
+  const half = Math.min(130, (window.innerWidth - 24) / 2);
+  const mid = Math.max(12 + half, Math.min(rect.left + rect.width / 2, window.innerWidth - 12 - half));
+  const tipStyle: React.CSSProperties = above
+    ? { left: mid, top: rect.top - pad - gap, translate: '-50% -100%' }
+    : below
+      ? { left: mid, top: rect.bottom + pad + gap, translate: '-50% 0' }
+      : { left: mid, top: Math.max(72, rect.top + 12), translate: '-50% 0' };
+  // Portalled to the body: inside the sidebar the ring would sit under the page's own layers.
+  return createPortal(
     <>
       <div className="tour-spot" aria-hidden style={{ left: rect.left - pad, top: rect.top - pad, width: rect.width + pad * 2, height: rect.height + pad * 2 }} />
-      <div className="tour-tip" role="status" style={below ? { left: tipLeft, top: rect.bottom + pad + 12 } : { left: tipLeft, top: rect.top - pad - 52 }}>
+      <div className="tour-tip" role="status" style={tipStyle}>
         {step.tip}
       </div>
-    </>
+    </>,
+    document.body,
   );
 }

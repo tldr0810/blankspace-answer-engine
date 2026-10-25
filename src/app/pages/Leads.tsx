@@ -30,8 +30,8 @@ export default function Leads(props: { engine: EngineState; admin: boolean; need
 
   if (!leads) return <PageSkeleton kind="leads" label="Loading leads" />;
   const shown = leads.filter((l) => (filter === 'verified' ? l.verdict === 'verified' : filter === 'approved' ? l.status === 'approved' : true));
-  // The tour points at a lead with the most evidence to show: a second review, then a checked contact.
-  const tourLead = (shown.find((l) => l.review?.checks.length) ?? shown.find((l) => l.verdict === 'verified') ?? shown[0])?.id;
+  // The tour points at the top lead, so its tip sits over the column headings rather than another lead.
+  const tourLead = shown[0]?.id;
   const update = (id: string, patch: Partial<Lead>) => setLeads((all) => all!.map((l) => (l.id === id ? { ...l, ...patch } : l)));
 
   return (
