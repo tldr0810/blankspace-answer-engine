@@ -451,7 +451,7 @@ async function stepProfile(env: Env, run: Run, bag: Bag): Promise<StepResult> {
       });
     }
     call.status = 'done';
-    await addEvent(env, run.id, `The profiler suggested ${named} named ${named === 1 ? 'contact' : 'contacts'}. Code checks each one next.`);
+    await addEvent(env, run.id, `The profiler suggested ${named} named ${named === 1 ? 'contact' : 'contacts'}. Automated checks verify each one next.`);
   } catch (error) {
     call.status = 'failed';
     await callError(env, call, problemText(error));
@@ -601,7 +601,7 @@ async function stepReview(env: Env, run: Run, bag: Bag): Promise<StepResult> {
             verdict: 'verified',
             verifyNote: `Found by the verifier. ${result.note}`,
           });
-          change = `Found ${better.name}${better.role ? `, ${better.role}` : ''}; code found the name on the source page.`;
+          change = `Found ${better.name}${better.role ? `, ${better.role}` : ''}; verified on the source page.`;
         }
       }
       // A checked name the verifier shows is out of date, with a quote code found, falls back to the role.

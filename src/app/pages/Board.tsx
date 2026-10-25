@@ -119,7 +119,7 @@ export default function Board(props: { engine: EngineState; admin: boolean; onSt
       </section>
       {board && (
         <p className="muted small src-legend">
-          <SourceMark verified /> code opened a cited page and it covers the question · <SourceMark verified={false} /> the site blocks
+          <SourceMark verified /> automated checks opened a cited page and it covers the question · <SourceMark verified={false} /> the site blocks
           automated checks. Pages that are gone or off topic are left out of the counts ({props.engine.sources.dropped} so far, of{' '}
           {props.engine.sources.ok + props.engine.sources.dropped + props.engine.sources.blocked} checked). Pick any site to see the pages AI read.{' '}
           <a href={`#run/${board.runId}`}>See how this run went</a>.

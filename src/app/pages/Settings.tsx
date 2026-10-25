@@ -128,7 +128,7 @@ export default function Settings(props: { app: AppState; engine: EngineState; on
             {autopilot.lastPingAt ? `${ago(autopilot.lastPingAt)}, ${PING_RESULT[autopilot.lastPingResult ?? 'started']}` : 'not recorded yet'}
           </li>
           <li>
-            Sources checked by code: {props.engine.sources.ok} live and on topic, {props.engine.sources.dropped} dropped (gone or off topic),{' '}
+            Sources verified by automated checks: {props.engine.sources.ok} live and on topic, {props.engine.sources.dropped} dropped (gone or off topic),{' '}
             {props.engine.sources.blocked} on sites that block checks. Every cited page is checked again after 7 days.
           </li>
         </ul>

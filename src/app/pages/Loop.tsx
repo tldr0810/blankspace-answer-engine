@@ -52,7 +52,7 @@ const STEPS: Record<Key, StepDef> = {
     name: 'Leaderboard',
     tags: [{ cls: 't-eng', text: 'Engine check' }],
     icon: <path d="M3.5 20h17M6.5 16.5v-5M12 16.5V5.5M17.5 16.5v-8" />,
-    what: 'Code opens every cited page, drops dead or off-topic ones, and counts how many answers cite each site. Marketplaces, forums and brands drop out, leaving the publishers AI already depends on.',
+    what: 'Automated checks open every cited page, drops dead or off-topic ones, and counts how many answers cite each site. Marketplaces, forums and brands drop out, leaving the publishers AI already depends on.',
     check: 'Dead and off-topic pages dropped',
   },
   report: {
@@ -60,7 +60,7 @@ const STEPS: Record<Key, StepDef> = {
     tags: [{ cls: 't-new', text: 'The hook' }],
     icon: <path d="M6 3.5h9l3.5 3.5v13.5H6zM9 11h6.5M9 14.5h6.5M9 7.5h3" />,
     what: 'Each publisher gets a free report they will want to open: which buying questions AI cites them for, who sits next to them, and which AI bots their robots.txt lets in. That traffic is what Blankspace turns into revenue.',
-    check: 'Publishers only, with facts code counted',
+    check: 'Publishers only, with deterministically counted facts',
   },
   contact: {
     name: 'Verified contact',
@@ -69,7 +69,7 @@ const STEPS: Record<Key, StepDef> = {
       { cls: 't-eng', text: 'Engine check' },
     ],
     icon: <path d="M12 12a3.8 3.8 0 1 0 0-7.6 3.8 3.8 0 0 0 0 7.6zM4.5 20c.8-3.6 3.8-5.6 7.5-5.6s6.7 2 7.5 5.6" />,
-    what: 'A profiler agent works out who owns the site and who to talk to first. Code opens the page it cited and keeps the name only if it is really there, otherwise the lead falls back to the role.',
+    what: 'A profiler agent works out who owns the site and who to talk to first. The verification layer opens the page it cited and keeps the name only if it is really there, otherwise the lead falls back to the role.',
     check: 'Name found on a public page, or role only',
   },
   email: {
@@ -145,7 +145,7 @@ export default function Loop(props: { engine: EngineState }) {
       contact: {
         text:
           lead.verdict === 'verified'
-            ? `${who}. Code found the name on ${lead.contactSourceUrl ? new URL(lead.contactSourceUrl).pathname || '/' : 'the cited page'}.`
+            ? `${who}. Verified the name on ${lead.contactSourceUrl ? new URL(lead.contactSourceUrl).pathname || '/' : 'the cited page'}.`
             : `First contact: ${who}. ${stats.verified} contacts across all verticals are verified so far.`,
         link: { href: '#leads', label: 'See all leads' },
       },
@@ -332,7 +332,7 @@ export default function Loop(props: { engine: EngineState }) {
           </p>
           <div className="legend" aria-label="What the tags mean">
             <span className="item"><span className="tag t-ai">AI agent</span> runs in the cloud</span>
-            <span className="item"><span className="tag t-eng">Engine check</span> code has the final say</span>
+            <span className="item"><span className="tag t-eng">Engine check</span> the verification layer has the final say</span>
             <span className="item"><span className="tag t-new">The hook</span> what the publisher gets</span>
             <span className="item"><span className="tag t-you">You</span> a person decides</span>
           </div>
@@ -437,7 +437,7 @@ export default function Loop(props: { engine: EngineState }) {
         <ul className="facts loop-why">
           <li><b>The list finds itself.</b> The publishers worth calling are the ones AI answers already cite, so the engines do the prospecting.</li>
           <li><b>The hook keeps working.</b> A report and a leaderboard that refresh on schedule give every publisher a reason to open, share and come back.</li>
-          <li><b>People stay where they matter.</b> Agents judge, code counts, and a person approves every email and runs every call.</li>
+          <li><b>People stay where they matter.</b> Agents judge, the verification layer checks, and a person approves every email and runs every call.</li>
         </ul>
         <p className="muted small">
           Want the detail behind each step? <a href="#how">How it works</a> lists every check, or <a href="#check">run a check</a> on any site.

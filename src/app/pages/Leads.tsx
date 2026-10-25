@@ -38,7 +38,7 @@ export default function Leads(props: { engine: EngineState; admin: boolean; need
           <span className="eyebrow">Leads</span>
           <h1>Who to talk to, and what to say first</h1>
           <p>
-            Each publisher the engine kept, one row per site across every run, the person or role to contact, whether code confirmed that name on a public page, and a first email
+            Each publisher the engine kept, one row per site across every run, the person or role to contact, whether automated checks confirmed that name on a public page, and a first email
             built only from counted facts. Nothing is sent from here.
           </p>
         </div>
@@ -102,16 +102,16 @@ export default function Leads(props: { engine: EngineState; admin: boolean; need
 }
 
 const KEY: [Verdict, string][] = [
-  ['verified', 'Code opened the source page and found the person named there.'],
+  ['verified', 'Automated checks opened the source page and found the person named there.'],
   ['not_found', 'A name was suggested but the source page does not show it, so the email goes to the role.'],
   ['fetch_blocked', 'The source page refused our check. A person should look before sending.'],
   ['no_person', 'No public page names anyone in this role. Write to the role.'],
 ];
 
 const REVIEW_KEY: [LeadReview['decision'], string][] = [
-  ['pass', 'A second agent, not the one that found the lead, checked it is a publisher, the contact is right and the cited page answers the question. Code found every quote it gave.'],
-  ['reject', 'The second agent showed, with a quote code found on the page, that one of those is not true. Kept at the bottom.'],
-  ['unsure', 'The second agent could not tell, or code could not find its quote. A person decides.'],
+  ['pass', 'A second agent, not the one that found the lead, checked it is a publisher, the contact is right and the cited page answers the question. The verification layer found every quote it gave on its page.'],
+  ['reject', 'The second agent showed, with a quote the verification layer found on the page, that one of those is not true. Kept at the bottom.'],
+  ['unsure', 'The second agent could not tell, or its quote was not on the page. A person decides.'],
 ];
 
 function LeadRow(props: { lead: Lead; open: boolean; onToggle: () => void; admin: boolean; needPassword: () => void; onUpdate: (patch: Partial<Lead>) => void }) {
@@ -348,7 +348,7 @@ function ReviewChecks({ review }: { review: LeadReview }) {
           {c.quote && <q className="sub">{c.quote}</q>}
           {c.url && (
             <a className="src" href={c.url} target="_blank" rel="noreferrer">
-              {c.quoteCheck === 'on_page' ? 'Quote found on' : c.quoteCheck === 'unreadable' ? 'Page blocked code' : 'Source'} <b>{hostOf(c.url)}</b>
+              {c.quoteCheck === 'on_page' ? 'Quote found on' : c.quoteCheck === 'unreadable' ? 'Page blocked the check' : 'Source'} <b>{hostOf(c.url)}</b>
             </a>
           )}
         </li>
