@@ -860,6 +860,13 @@ button:active:not(:disabled):not(.primary), .button:active:not(.primary) { trans
 
 /* ── Autopilot (Settings) ── */
 .autopilot h2 { margin-top: 0; }
+/* Header row, warning, facts and schedule stack with even gaps, so the switch never touches the box below it. */
+.autopilot { display: flex; flex-direction: column; gap: 16px; }
+.autopilot > .row { row-gap: 12px; }
+.autopilot > .row > div { flex: 1 1 320px; }
+.autopilot > .row > .switch { flex: 0 0 auto; }
+.autopilot > .facts { align-self: stretch; }
+.autopilot > .notice, .autopilot > .facts, .autopilot > .automation { margin: 0; }
 .automation { margin-top: 14px; padding: 14px; border: 1.5px dashed var(--hair); border-radius: 14px; background: var(--paper); }
 .automation .eyebrow { display: block; margin-bottom: 4px; }
 .prompt { margin: 8px 0 0; padding: 12px; background: var(--card); border: 1.5px solid var(--ink); border-radius: 10px; font-family: var(--mono); font-size: 12px; white-space: pre-wrap; word-break: break-all; }
