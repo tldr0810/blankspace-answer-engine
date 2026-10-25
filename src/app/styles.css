@@ -882,3 +882,44 @@ button:active:not(:disabled):not(.primary), .button:active:not(.primary) { trans
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+
+/* ── the loop page: six steps on a ring, a token, and a panel for the step in view ── */
+.loop-stats { display: flex; gap: 10px; flex-wrap: wrap; }
+.loop > .loop-panel { grid-area: panel; position: sticky; top: 80px; display: flex; flex-direction: column; gap: 12px; }
+.loop-panel h2 { margin: 0; font-size: 26px; }
+.loop-panel p { margin: 0; }
+.loop .stage { height: 720px; }
+.loop .token { opacity: 1; z-index: 4; }
+.loop .station { width: 160px; }
+.sbadge { position: relative; width: 92px; height: 92px; border-radius: 50%; border: 2px solid var(--ink); background: var(--card); box-shadow: var(--shadow); display: inline-flex; align-items: center; justify-content: center; transition: translate 0.2s ease, rotate 0.2s ease, background-color 0.2s; flex: 0 0 auto; }
+.sbadge svg { width: 40px; height: 40px; fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.sbadge-n { position: absolute; top: -4px; right: -4px; width: 28px; height: 28px; border-radius: 50%; background: var(--ink); color: var(--card); font-family: var(--display); font-weight: 800; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; border: 2px solid var(--paper); }
+.station:hover .sbadge { translate: 0 -4px; rotate: -3deg; }
+.station.is-active .sbadge, .vstep.is-active .sbadge { background: var(--accent-soft); animation: glow 1.3s ease-in-out infinite; }
+.station.is-active .sbadge-n { background: var(--accent); }
+
+
+.loop-hub { position: absolute; z-index: 3; left: 215px; top: 255px; width: 270px; padding: 18px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; box-shadow: var(--shadow); }
+.loop-hub b { font-size: 26px; font-weight: 800; line-height: 1.1; }
+.loop-hub p { margin: 0; font-size: 13px; color: var(--ink2); line-height: 18px; }
+.loop-example { background: var(--paper2); border: 1.5px solid var(--ink); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.loop-example p { font-size: 14px; line-height: 20px; }
+.loop-guard { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--eng); }
+.loop-guard .icon { stroke-width: 2.2; }
+.loop-nav { margin-top: 2px; }
+.loop-nav .flip { rotate: 180deg; }
+.loop-why { list-style: none; display: flex; flex-direction: column; gap: 10px; margin: 0 0 12px; }
+.loop-why li { line-height: 20px; }
+.loop .vtrack::before { left: 31px; }
+.loop .vstep.is-active .vbtn .nm { color: var(--you); }
+.loop .vstep.is-past .sbadge { background: var(--paper2); }
+.sbadge.small { width: 62px; height: 62px; box-shadow: var(--shadow-sm); }
+.sbadge.small svg { width: 28px; height: 28px; }
+.vback { display: flex; align-items: center; gap: 10px; padding-left: 20px; color: var(--ink3); font-size: 12.5px; font-weight: 600; }
+.vback svg { width: 22px; height: 22px; fill: none; stroke: var(--accent); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; background: var(--paper); }
+.ph > div { min-width: 0; }
+.legend span.item { flex-wrap: wrap; }
+.loop-panel { scroll-margin-top: 72px; }
+@media (max-width: 1180px) {
+  .loop > .loop-panel { position: static; }
+}

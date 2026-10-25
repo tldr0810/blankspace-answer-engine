@@ -21,7 +21,7 @@ export default function How() {
           <h1>Agents judge, code counts</h1>
           <p>
             The engine finds publishers that AI shopping answers already depend on, shows them that traffic in a report they will want to open,
-            and hands the Blankspace team a checked contact and a first email.
+            and hands the Blankspace team a checked contact and a first email. New here? <a href="#loop">See the whole loop on one screen</a>.
           </p>
         </div>
       </div>

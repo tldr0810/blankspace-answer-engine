@@ -1,7 +1,8 @@
 /**
  * The shell: sidebar navigation routed by location.hash, a sticky top bar, and the pages.
  *
- *   #check                 start a live check (home)
+ *   #loop                  what the app does, as one loop (home)
+ *   #check                 start a live check
  *   #run/<id>              one run, live
  *   #board                 AI answer share by vertical
  *   #report/<run>/<site>   the report a publisher would get
@@ -19,14 +20,16 @@ import Board from './pages/Board';
 import Check from './pages/Check';
 import How from './pages/How';
 import Leads from './pages/Leads';
+import Loop from './pages/Loop';
 import Report from './pages/Report';
 import RunView from './pages/RunView';
 import Settings from './pages/Settings';
 import { Icon, PageSkeleton } from './ui';
 
-type Page = 'check' | 'run' | 'board' | 'report' | 'leads' | 'how' | 'settings';
-const NAV: Page[] = ['check', 'board', 'leads', 'how', 'settings'];
+type Page = 'loop' | 'check' | 'run' | 'board' | 'report' | 'leads' | 'how' | 'settings';
+const NAV: Page[] = ['loop', 'check', 'board', 'leads', 'how', 'settings'];
 const TITLES: Record<Page, string> = {
+  loop: 'The loop',
   check: 'Check',
   run: 'Run',
   board: 'Leaderboard',
@@ -47,11 +50,12 @@ function parseHash(): Route {
   const [head, a, b] = raw.split('/');
   if (head === 'run' && a) return { page: 'run', runId: a, domain: null };
   if (head === 'report' && a && b) return { page: 'report', runId: a, domain: b };
-  const page = (['check', 'board', 'leads', 'how', 'settings'] as Page[]).includes(head as Page) ? (head as Page) : 'check';
+  const page = (['loop', 'check', 'board', 'leads', 'how', 'settings'] as Page[]).includes(head as Page) ? (head as Page) : 'loop';
   return { page, runId: null, domain: null };
 }
 
 const ICON: Record<Page, React.ReactNode> = {
+  loop: <svg viewBox="0 0 16 16"><path d="M12.5 6A5 5 0 1 0 13 9.5M12.5 2.5V6H9" /></svg>,
   check: <svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5" /><path d="M10.5 10.5l3.5 3.5" /></svg>,
   run: <svg viewBox="0 0 16 16"><path d="M5 3.5v9l7-4.5z" /></svg>,
   board: <svg viewBox="0 0 16 16"><path d="M2.5 13.5h11M4 11V7M8 11V3.5M12 11V5.5" /></svg>,
@@ -121,6 +125,8 @@ export default function App() {
     body = <Board engine={engine} admin={admin} onStarted={refresh} needPassword={() => setGateOpen(true)} />;
   } else if (page === 'leads') {
     body = <Leads engine={engine} admin={admin} needPassword={() => setGateOpen(true)} />;
+  } else if (page === 'loop') {
+    body = <Loop engine={engine} />;
   } else if (page === 'how') {
     body = <How />;
   } else if (page === 'settings') {
