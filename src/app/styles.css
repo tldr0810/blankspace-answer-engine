@@ -973,21 +973,21 @@ button:active:not(:disabled):not(.primary), .button:active:not(.primary) { trans
 }
 
 /* Leads: how the score adds up, and what each status means. */
-.lead-key { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 20px 28px; padding: 16px 20px; margin-bottom: 16px; }
+.lead-key { display: flex; flex-direction: column; gap: 14px; padding: 16px 20px; margin-bottom: 16px; }
+.lk-groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 24px; padding-top: 14px; border-top: 1.5px dashed var(--hair); }
 .score-sum { margin: 8px 0 6px; font-size: 15px; line-height: 26px; color: var(--ink); }
 .score-sum b { display: inline-block; min-width: 30px; padding: 0 7px; margin-right: 3px; border: 1.5px solid var(--ink); border-radius: 8px; background: var(--paper2); text-align: center; font-weight: 800; line-height: 20px; }
 .score-sum i { font-style: normal; font-weight: 800; color: var(--ink3); margin: 0 4px; }
 .key-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
-.key-list li { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 10px; align-items: start; font-size: 12.5px; line-height: 18px; color: var(--ink2); }
-.key-list li .tag { justify-self: start; }
+.key-list li { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; font-size: 12.5px; line-height: 17px; color: var(--ink2); }
 .score-parts { list-style: none; margin: 4px 0 0; padding: 0; width: 100%; display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; line-height: 18px; }
 .score-parts li { display: flex; justify-content: space-between; gap: 10px; color: var(--ink); }
 .score-parts li.zero { color: var(--ink3); }
 .score-parts b { font-weight: 800; white-space: nowrap; }
 .score-parts b small { font-weight: 600; color: var(--ink3); }
 @media (max-width: 760px) {
-  .lead-key { grid-template-columns: 1fr; padding: 14px 16px; }
-  .key-list li { grid-template-columns: 1fr; gap: 4px; }
+  .lead-key { padding: 14px 16px; }
+  .lk-groups { grid-template-columns: 1fr; }
 }
 
 /* Leads: the verifier's checks inside the facts panel. */
