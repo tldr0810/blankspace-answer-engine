@@ -922,4 +922,50 @@ button:active:not(:disabled):not(.primary), .button:active:not(.primary) { trans
 .loop-panel { scroll-margin-top: 72px; }
 @media (max-width: 1180px) {
   .loop > .loop-panel { position: static; }
+/* ── Leaderboard rows you can pick: the whole row is one button that opens the site drawer ── */
+.board.pick li, .board.big.pick li { display: block; padding: 0; }
+.board .b-row { width: 100%; display: grid; grid-template-columns: minmax(0, 200px) minmax(0, 1fr) 44px 14px; gap: 12px; align-items: center; justify-content: stretch; text-align: left; padding: 6px 8px; min-height: 0; border: 0; border-radius: inherit; background: transparent; box-shadow: none; font: inherit; font-size: 13.5px; font-weight: 400; color: inherit; }
+.board.big .b-row { grid-template-columns: 28px minmax(0, 230px) minmax(0, 1fr) 60px 14px; padding: 10px 20px; }
+.board .b-row:hover:not(:disabled) { background: var(--paper); }
+.board li.you .b-row:hover { background: var(--you-bg); }
+.board .b-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.board .b-row[aria-expanded='true'] { background: var(--paper2); }
+.board .b-go { color: var(--ink3); opacity: 0.5; transition: opacity 0.15s, translate 0.15s; }
+.board .b-row:hover .b-go, .board .b-row:focus-visible .b-go { opacity: 1; translate: 2px 0; }
+.pick-hint { margin: 10px 0 0; }
+@media (max-width: 640px) {
+  .board .b-row { grid-template-columns: minmax(0, 120px) minmax(0, 1fr) 34px 12px; gap: 8px; }
+  .board.big .b-row { grid-template-columns: 22px minmax(0, 130px) minmax(0, 1fr) 46px 12px; padding: 10px 14px; }
+}
+
+/* ── Site drawer: slides in from the right, full width on phones ── */
+.drawer-wrap { position: fixed; inset: 0; z-index: 35; }
+.drawer-scrim { position: absolute; inset: 0; background: rgba(29, 27, 24, 0.4); animation: scrim-in 0.2s ease-out both; }
+.drawer { position: absolute; top: 0; right: 0; bottom: 0; width: min(520px, 100vw); display: flex; flex-direction: column; background: var(--card); border-left: 2px solid var(--ink); box-shadow: -6px 0 0 var(--ink); animation: drawer-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes drawer-in { from { translate: 100% 0; } }
+@keyframes scrim-in { from { opacity: 0; } }
+.drawer-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px 20px 14px; border-bottom: 1.5px dashed var(--hair); }
+.drawer-head h2 { margin: 4px 0 0; font-family: var(--mono); font-size: 19px; font-weight: 700; display: flex; align-items: center; overflow-wrap: anywhere; }
+.drawer-x { width: 40px; min-width: 40px; padding: 0; flex: 0 0 auto; }
+.drawer-x:focus-visible, .drawer a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.drawer-body { flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; padding: 16px 20px 24px; display: flex; flex-direction: column; gap: 18px; }
+.drawer-body h3 { font-size: 15px; font-weight: 700; margin: 0 0 8px; }
+.drawer-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.drawer-kpis .kpi { padding: 10px 12px; }
+.drawer-kpis .kpi .v { font-size: 24px; }
+.drawer-bar { display: flex; flex-direction: column; gap: 6px; }
+.drawer-pages { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.drawer-pages li { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 12px; border: 1.5px solid var(--hair); border-radius: 12px; background: var(--paper); }
+.drawer-pages a { font-size: 13.5px; overflow-wrap: anywhere; }
+.drawer-callout { background: #fff6cf; border: 1.5px solid var(--ink); border-radius: 14px; padding: 14px 16px; }
+.drawer-callout p { margin: 0 0 8px; }
+.drawer-callout p:last-child { margin: 0; }
+.drawer-loading { display: flex; flex-direction: column; gap: 12px; padding-top: 6px; }
+.drawer-foot { padding: 14px 20px calc(14px + env(safe-area-inset-bottom)); border-top: 1.5px dashed var(--hair); display: flex; justify-content: flex-end; }
+@media (max-width: 640px) {
+  .drawer { border-left: 0; box-shadow: none; }
+  .drawer-head, .drawer-body, .drawer-foot { padding-left: 16px; padding-right: 16px; }
+  .drawer-kpis { gap: 8px; }
+  .drawer-kpis .kpi .v { font-size: 20px; }
+  .drawer-foot .button { width: 100%; }
 }
