@@ -111,7 +111,7 @@ export function ensureSeed(env: Env, origin: string): Promise<void> {
           });
         }
         await env.DB.prepare('INSERT INTO events (run_id, text, created_at) VALUES (?, ?, ?)')
-          .bind(runId, `First run, made with a Claude and a Gemini agent on Manyfold: ${total} answers, ${rows.length} sites cited, ${block.leads.length} publishers kept after the fact-check.`, data.runAt)
+          .bind(runId, `First run, made with a Claude and a Gemini agent running in the cloud: ${total} answers, ${rows.length} sites cited, ${block.leads.length} publishers kept after the fact-check.`, data.runAt)
           .run();
         await insertRun(env, run);
       }

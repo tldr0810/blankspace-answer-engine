@@ -47,7 +47,7 @@ export default function Settings(props: { app: AppState; engine: EngineState; on
           <span className="eyebrow">Settings</span>
           <h1>Agents</h1>
           <p>
-            Connect your Manyfold agents, then give each role an agent. Scouts need live web search. Visitors never see this page or any
+            Connect your cloud agents, then give each role an agent. Scouts need live web search. Visitors never see this page or any
             token.
           </p>
         </div>
@@ -88,7 +88,7 @@ export default function Settings(props: { app: AppState; engine: EngineState; on
           <div>
             <h2>Autopilot</h2>
             <p className="muted">
-              A Manyfold automation calls this app on its schedule. Each call refreshes the next vertical in rotation, at most once every{' '}
+              A scheduled agent in the cloud calls this app on its schedule. Each call refreshes the next vertical in rotation, at most once every{' '}
               {AUTOPILOT_MIN_GAP_HOURS} hours and never while one is still running, so extra calls cost nothing.
             </p>
           </div>
@@ -107,8 +107,8 @@ export default function Settings(props: { app: AppState; engine: EngineState; on
         </div>
         {stale && (
           <p className="notice warn">
-            {lastCall ? `No call from the Manyfold automation since ${ago(lastCall)}` : 'The Manyfold automation has not called yet'}, but it
-            should call every 6 hours. Check that the automation below is still active in Manyfold.
+            {lastCall ? `No call from the scheduled agent since ${ago(lastCall)}` : 'The scheduled agent has not called yet'}, but it
+            should call every 6 hours. Check that the schedule below is still active.
           </p>
         )}
         <ul className="facts">
@@ -124,7 +124,7 @@ export default function Settings(props: { app: AppState; engine: EngineState; on
             )}
           </li>
           <li>
-            Last call from Manyfold:{' '}
+            Last call from the schedule:{' '}
             {autopilot.lastPingAt ? `${ago(autopilot.lastPingAt)}, ${PING_RESULT[autopilot.lastPingResult ?? 'started']}` : 'not recorded yet'}
           </li>
           <li>
@@ -133,7 +133,7 @@ export default function Settings(props: { app: AppState; engine: EngineState; on
           </li>
         </ul>
         <div className="automation">
-          <span className="eyebrow">The Manyfold automation</span>
+          <span className="eyebrow">The schedule</span>
           <p className="small muted">
             Agent <b>blankspace-gtm</b>, schedule every 6 hours (<code>FREQ=HOURLY;INTERVAL=6</code>), prompt:
           </p>
@@ -185,7 +185,7 @@ export default function Settings(props: { app: AppState; engine: EngineState; on
             Set an admin password with <code>npx wrangler secret put ADMIN_PASSWORD</code>. Without one, anyone can open this page.
           </li>
           <li>Visitors can start site checks and questions up to the daily limit ({props.engine.limits.dailyLimit} a day). Change DAILY_RUN_LIMIT in wrangler.jsonc.</li>
-          <li>Each live run spends agent turns on your Manyfold account.</li>
+          <li>Each live run spends agent turns on your cloud agent account.</li>
         </ul>
       </section>
     </div>

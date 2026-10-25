@@ -99,8 +99,8 @@ app.onError((error, c) => {
   }
   if (error instanceof A2AError) {
     return error.retryable
-      ? c.json({ error: { code: 'manyfold_unavailable', message: error.message } }, 502)
-      : c.json({ error: { code: 'manyfold_rejected', message: error.message } }, 400);
+      ? c.json({ error: { code: 'agent_unavailable', message: error.message } }, 502)
+      : c.json({ error: { code: 'agent_rejected', message: error.message } }, 400);
   }
   console.error('unhandled', error);
   return c.json({ error: { code: 'internal', message: 'Something went wrong.' } }, 500);
