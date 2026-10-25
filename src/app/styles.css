@@ -172,6 +172,8 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1.5px solid var(--ink);
 .tabs { display: flex; gap: 4px; align-items: center; color: var(--ink3); font-size: 13px; font-weight: 600; background: var(--card); border: 1.5px solid var(--ink); border-radius: 999px; padding: 3px; }
 .tabs { position: relative; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 .tabs::-webkit-scrollbar { display: none; }
+/* Pill switches hug their options instead of stretching across the row. */
+.tabs, .seg, .mode-switch { width: fit-content; align-self: flex-start; }
 .tabs > span { padding: 0 8px; flex: 0 0 auto; }
 .tabs button { flex: 0 0 auto; min-height: 32px; min-width: 36px; padding: 0 10px; font-family: var(--display); font-weight: 700; font-size: 14px; border-radius: 999px; background: transparent; border: none; color: var(--ink); }
 .tabs button[aria-pressed='true'] { background: var(--ink); color: var(--card); }

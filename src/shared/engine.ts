@@ -203,8 +203,14 @@ export interface Autopilot {
   next: number;
   lastAt: string | null;
   lastRunId: string | null;
+  /** When the Manyfold automation last called, whether or not that call started a run. */
+  lastPingAt: string | null;
+  /** What that call did: 'started', or why it skipped. */
+  lastPingResult: 'started' | 'paused' | 'no_engines' | 'running' | 'too_soon' | null;
 }
 export const AUTOPILOT_MIN_GAP_HOURS = 2;
+/** The automation runs every 6 hours; past this, the panel says it has stopped calling. */
+export const AUTOPILOT_STALE_HOURS = 8;
 
 export type Verdict = 'verified' | 'not_found' | 'fetch_blocked' | 'no_person' | 'pending';
 

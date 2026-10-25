@@ -1,17 +1,27 @@
 /** Owner only: connect Manyfold agents and decide which one plays which role. */
 
 import { useState } from 'react';
-import { AUTOPILOT_MIN_GAP_HOURS, ROLES, ROLE_HELP, ROLE_LABEL, VERTICAL_LABEL, type EngineState, type Role } from '../../shared/engine';
+import { AUTOPILOT_MIN_GAP_HOURS, AUTOPILOT_STALE_HOURS, ROLES, ROLE_HELP, ROLE_LABEL, VERTICAL_LABEL, type EngineState, type Role } from '../../shared/engine';
 import type { AppState } from '../../shared/types';
 import { api, ApiError } from '../api';
 import ConnectPanel from '../components/ConnectPanel';
 import { ago, Picker } from '../ui';
+
+const PING_RESULT = {
+  started: 'started a refresh',
+  paused: 'skipped because autopilot is paused',
+  no_engines: 'skipped because no scout agents are assigned',
+  running: 'skipped because a refresh was still going',
+  too_soon: `skipped because the last refresh started under ${AUTOPILOT_MIN_GAP_HOURS} hours earlier`,
+} as const;
 
 export default function Settings(props: { app: AppState; engine: EngineState; onChange: () => Promise<void> }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const agents = props.app.agents;
   const autopilot = props.engine.autopilot;
+  const lastCall = autopilot.lastPingAt ?? autopilot.lastAt;
+  const stale = autopilot.enabled && (!lastCall || Date.now() - Date.parse(lastCall) > AUTOPILOT_STALE_HOURS * 3_600_000);
   const automationPrompt = `Run this command once and reply with its output, nothing else:\ncurl -sS -X POST ${location.origin}/api/engine/autopilot`;
 
   const act = async (key: string, fn: () => Promise<unknown>) => {
@@ -95,17 +105,27 @@ export default function Settings(props: { app: AppState; engine: EngineState; on
             {autopilot.enabled ? 'On' : 'Paused'}
           </button>
         </div>
+        {stale && (
+          <p className="notice warn">
+            {lastCall ? `No call from the Manyfold automation since ${ago(lastCall)}` : 'The Manyfold automation has not called yet'}, but it
+            should call every 6 hours. Check that the automation below is still active in Manyfold.
+          </p>
+        )}
         <ul className="facts">
           <li>
-            Next vertical: <b>{VERTICAL_LABEL[autopilot.nextVertical]}</b>
+            Next to refresh: the <b>{VERTICAL_LABEL[autopilot.nextVertical]}</b> category
           </li>
           <li>
-            Last automatic run:{' '}
+            Last refresh it started:{' '}
             {autopilot.lastRunId ? (
               <a href={`#run/${autopilot.lastRunId}`}>{ago(autopilot.lastAt)}</a>
             ) : (
               'none yet'
             )}
+          </li>
+          <li>
+            Last call from Manyfold:{' '}
+            {autopilot.lastPingAt ? `${ago(autopilot.lastPingAt)}, ${PING_RESULT[autopilot.lastPingResult ?? 'started']}` : 'not recorded yet'}
           </li>
           <li>
             Sources checked by code: {props.engine.sources.ok} live and on topic, {props.engine.sources.dropped} dropped (gone or off topic),{' '}
