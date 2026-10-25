@@ -19,7 +19,7 @@ import {
 } from '../../shared/engine';
 import { getSetting, now, setSetting } from '../db';
 import type { Env } from '../types';
-import { domainOf, isPublisher, listedNonPublisher, onePerSite, siteVerified, tally, withoutDropped, type Answer } from './logic';
+import { domainOf, isPublisher, listedNonPublisher, onePerSite, score, siteVerified, tally, withoutDropped, type Answer } from './logic';
 
 const json = <T>(value: string | null | undefined, fallback: T): T => {
   if (!value) return fallback;
@@ -343,7 +343,9 @@ export async function bestLeads(env: Env): Promise<Lead[]> {
     `SELECT l.*, r.started_at AS run_at FROM leads l JOIN runs r ON r.id = l.run_id WHERE r.status = 'done'`,
   ).all<LeadRow & { run_at: string }>();
   const picked = onePerSite((results ?? []).map((r) => ({ ...r, runAt: r.run_at })));
-  return toLeads(env, picked);
+  // Site facts are re-checked weekly, so score against the latest ones: the page shows how the number adds up.
+  const leads = (await toLeads(env, picked)).map((l) => (l.facts ? { ...l, score: score(l.answers, l.total, l.facts) } : l));
+  return leads.sort((a, b) => b.score - a.score);
 }
 
 async function toLeads(env: Env, rows: LeadRow[]): Promise<Lead[]> {
