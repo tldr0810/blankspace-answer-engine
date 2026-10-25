@@ -219,7 +219,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1.5px solid var(--ink);
 /* A plain list inside a panel: the panel is the frame, so the list gets no second box. */
 ul.facts { background: none; border: none; border-radius: 0; padding: 0 0 0 20px; margin: 0; display: flex; flex-direction: column; gap: 8px; line-height: 22px; }
 ul.facts.loop-why { padding-left: 0; }
-.composer { background: var(--card); border: 1.5px solid var(--ink); border-radius: 14px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+.composer { background: var(--card); border: 1.5px solid var(--ink); border-radius: 14px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; min-width: 0; overflow: hidden; align-self: start; }
 .composer header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 16px; border-bottom: 1.5px solid var(--ink); background: var(--paper); }
 .composer .cf { display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: center; gap: 8px; padding: 0 16px; min-height: 46px; border-bottom: 1.5px solid var(--hair); cursor: text; }
 .composer .cf > span:first-child { font-size: 12.5px; font-weight: 700; color: var(--ink3); }
