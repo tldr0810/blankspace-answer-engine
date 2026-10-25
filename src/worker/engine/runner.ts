@@ -28,7 +28,7 @@ import { now } from '../db';
 import { A2AError, safeErrorText } from '../a2a';
 import type { Env } from '../types';
 import { checkSite, verifyContact } from './fetchers';
-import { acceptAnswers, draftEmail, isPublisher, listedNonPublisher, score as scoreSite } from './logic';
+import { acceptAnswers, draftEmail, foreignSite, isPublisher, listedNonPublisher, score as scoreSite } from './logic';
 import { profilePrompt, profileSchema, scoutPrompt, scoutSchema } from './prompts';
 import {
   addEvent,
@@ -345,7 +345,7 @@ async function stepScore(env: Env, run: Run, bag: Bag): Promise<StepResult> {
     bag.candidates = [run.domain!];
   } else {
     const limit = run.kind === 'question' ? 8 : LEADS_PER_VERTICAL * 2;
-    bag.candidates = rows.filter((r) => !listedNonPublisher(r.domain)).slice(0, limit).map((r) => r.domain);
+    bag.candidates = rows.filter((r) => !listedNonPublisher(r.domain) && !foreignSite(r.domain)).slice(0, limit).map((r) => r.domain);
   }
   bag.enriched = 0;
   await addEvent(env, run.id, `Counted ${total} answers citing ${rows.length} different sites. Checking ${bag.candidates.length} of them.`);

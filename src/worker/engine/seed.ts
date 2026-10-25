@@ -88,7 +88,8 @@ export function ensureSeed(env: Env, origin: string): Promise<void> {
             monetisation: lead.monetisation,
             aiDeal: lead.aiDeal,
             contactRole: lead.contactRole,
-            contactName: lead.contactName,
+            // A name the fact-check could not find on its page is not kept, only the role.
+            contactName: verified ? lead.contactName : null,
             contactSourceUrl: lead.contactSourceUrl,
             why: lead.why,
             verdict: lead.verdict,

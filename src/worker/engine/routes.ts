@@ -7,6 +7,7 @@
  *   POST  /runs                          { kind, vertical, domain?, question? } → start a run
  *   GET   /runs/:id                      run, live feed, board, leads, agent calls
  *   GET   /runs/:id/report/:domain       a site's AI Answer Share report
+ *   GET   /leads                         every run's leads, one per site
  *   PATCH /leads/:id                     { email?, status? } edit or approve a draft
  *   PUT   /roles                         { role, agentId|null } assign an agent to a role
  *   POST  /autopilot                     start the next vertical in rotation if one is due (Manyfold automation)
@@ -19,6 +20,7 @@ import {
   ROLES,
   VERTICALS,
   type EngineState,
+  type Lead,
   type Role,
   type RunDetail,
   type RunKind,
@@ -45,6 +47,7 @@ import {
   readyEngines,
   rememberOrigin,
   roleMap,
+  bestLeads,
   runLeads,
   runsSince,
   setRole,
@@ -54,6 +57,14 @@ import {
 import { tickerFor } from './ticker';
 
 const MAX_ACTIVE = 3;
+
+/** What a visitor without the password sees of a lead. */
+const publicLead = (l: Lead): Lead => ({
+  ...l,
+  contactName: l.verdict === 'verified' ? l.contactName : null,
+  // The address the owner typed stays owner-only.
+  email: l.email ? joinEmail({ ...splitEmail(l.email), to: '' }) : null,
+});
 
 type AdminCheck = (c: { env: Env; req: { header: (name: string) => string | undefined } }) => boolean;
 
@@ -169,17 +180,15 @@ export function engineRoutes(adminOk: AdminCheck) {
       events,
       board: board.rows.slice(0, 20).map(({ pages: _p, queries: _q, ...row }) => row),
       total: board.total,
-      leads: adminOk(c)
-        ? leads
-        : leads.map((l) => ({
-            ...l,
-            contactName: l.verdict === 'verified' ? l.contactName : null,
-            // The address the owner typed stays owner-only.
-            email: l.email ? joinEmail({ ...splitEmail(l.email), to: '' }) : null,
-          })),
+      leads: adminOk(c) ? leads : leads.map(publicLead),
       calls,
     };
     return c.json(detail);
+  });
+
+  app.get('/leads', async (c) => {
+    const leads = await bestLeads(c.env);
+    return c.json({ leads: adminOk(c) ? leads : leads.map(publicLead) });
   });
 
   app.get('/runs/:id/report/:domain', async (c) => {

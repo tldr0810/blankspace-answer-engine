@@ -4,33 +4,28 @@
  * fact-check could not confirm are shown as the role only.
  */
 
-import { useEffect, useMemo, useState } from 'react';
-import { VERTICAL_LABEL, type EngineState, type Lead, type RunDetail } from '../../shared/engine';
+import { useEffect, useState } from 'react';
+import { VERTICAL_LABEL, type EngineState, type Lead } from '../../shared/engine';
 import { api, ApiError } from '../api';
 import { isEmailAddress, joinEmail, mailtoHref, splitEmail, type EmailParts } from '../../shared/email';
 import { hostOf, Icon, PageSkeleton, VerdictTag } from '../ui';
 
 export default function Leads(props: { engine: EngineState; admin: boolean; needPassword: () => void }) {
-  const runIds = useMemo(() => {
-    const ids = props.engine.boards.map((b) => b.runId);
-    for (const run of props.engine.runs) if (run.kind === 'site' && run.status === 'done' && !ids.includes(run.id)) ids.push(run.id);
-    return ids;
-  }, [props.engine]);
+  // Refetch when a run finishes, so new leads show without a reload.
+  const doneRuns = props.engine.runs.filter((r) => r.status === 'done').map((r) => r.id).join(',');
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'verified' | 'approved'>('all');
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all(runIds.map((id) => api<RunDetail>(`/api/engine/runs/${encodeURIComponent(id)}`).catch(() => null))).then((details) => {
-      if (cancelled) return;
-      const all = details.flatMap((d) => d?.leads ?? []);
-      setLeads(all.sort((a, b) => b.score - a.score));
-    });
+    api<{ leads: Lead[] }>('/api/engine/leads')
+      .then((r) => !cancelled && setLeads(r.leads))
+      .catch(() => !cancelled && setLeads((l) => l ?? []));
     return () => {
       cancelled = true;
     };
-  }, [runIds]);
+  }, [doneRuns, props.admin]);
 
   if (!leads) return <PageSkeleton kind="leads" label="Loading leads" />;
   const shown = leads.filter((l) => (filter === 'verified' ? l.verdict === 'verified' : filter === 'approved' ? l.status === 'approved' : true));
@@ -43,7 +38,7 @@ export default function Leads(props: { engine: EngineState; admin: boolean; need
           <span className="eyebrow">Leads</span>
           <h1>Who to talk to, and what to say first</h1>
           <p>
-            Each publisher the engine kept, the person or role to contact, whether code confirmed that name on a public page, and a first email
+            Each publisher the engine kept, one row per site across every run, the person or role to contact, whether code confirmed that name on a public page, and a first email
             built only from counted facts. Nothing is sent from here.
           </p>
         </div>

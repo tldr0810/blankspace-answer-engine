@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   acceptAnswers,
+  foreignSite,
+  onePerSite,
   judgePage,
   missReason,
   pageCovers,
@@ -170,5 +172,34 @@ describe('missReason', () => {
   });
   it('does not flag a normal page that loads a Cloudflare script', () => {
     expect(missReason(res(200, '<script src="/cdn-cgi/challenge-platform/scripts/jsd/main.js"></script>', { 'cf-ray': 'abc' }))).toBe('not_a_file');
+  });
+});
+
+describe('foreignSite', () => {
+  it('drops other countries but keeps UK and generic endings', () => {
+    expect(foreignSite('autohled.cz')).toBe(true);
+    expect(foreignSite('idealo.de')).toBe(true);
+    expect(foreignSite('whatcar.com')).toBe(false);
+    expect(foreignSite('carwow.co.uk')).toBe(false);
+    expect(foreignSite('stuff.tv')).toBe(false);
+  });
+});
+
+describe('onePerSite', () => {
+  const lead = (domain: string, verdict: string, runAt: string, score: number) => ({ domain, verdict, runAt, score });
+  it('prefers a checked contact, then the newest run, then the score', () => {
+    const out = onePerSite([
+      lead('carwow.co.uk', 'not_found', '2026-10-21', 63),
+      lead('carwow.co.uk', 'verified', '2026-10-21T15', 33),
+      lead('runrepeat.com', 'verified', '2026-10-21', 41),
+      lead('runrepeat.com', 'verified', '2026-10-25', 42),
+      lead('expertreviews.co.uk', 'verified', '2026-10-21', 60),
+      lead('expertreviews.co.uk', 'no_person', '2026-10-22', 48),
+    ]);
+    expect(out.map((l) => [l.domain, l.verdict, l.runAt])).toEqual([
+      ['expertreviews.co.uk', 'verified', '2026-10-21'],
+      ['runrepeat.com', 'verified', '2026-10-25'],
+      ['carwow.co.uk', 'verified', '2026-10-21T15'],
+    ]);
   });
 });
