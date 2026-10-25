@@ -19,7 +19,7 @@ import {
 } from '../../shared/engine';
 import { getSetting, now, setSetting } from '../db';
 import type { Env } from '../types';
-import { domainOf, isPublisher, listedNonPublisher, siteVerified, tally, withoutDropped, type Answer } from './logic';
+import { domainOf, isPublisher, listedNonPublisher, onePerSite, siteVerified, tally, withoutDropped, type Answer } from './logic';
 
 const json = <T>(value: string | null | undefined, fallback: T): T => {
   if (!value) return fallback;
@@ -334,7 +334,19 @@ interface LeadRow {
 
 export async function runLeads(env: Env, runId: string): Promise<Lead[]> {
   const { results } = await env.DB.prepare('SELECT * FROM leads WHERE run_id = ? ORDER BY score DESC, answers DESC').bind(runId).all<LeadRow>();
-  const rows = results ?? [];
+  return toLeads(env, results ?? []);
+}
+
+/** Every finished run's leads, one per site (see onePerSite): what the Leads page lists. */
+export async function bestLeads(env: Env): Promise<Lead[]> {
+  const { results } = await env.DB.prepare(
+    `SELECT l.*, r.started_at AS run_at FROM leads l JOIN runs r ON r.id = l.run_id WHERE r.status = 'done'`,
+  ).all<LeadRow & { run_at: string }>();
+  const picked = onePerSite((results ?? []).map((r) => ({ ...r, runAt: r.run_at })));
+  return toLeads(env, picked);
+}
+
+async function toLeads(env: Env, rows: LeadRow[]): Promise<Lead[]> {
   const facts = await siteFacts(env, rows.map((r) => r.domain));
   return rows.map((r) => ({
     id: r.id,

@@ -9,10 +9,10 @@ export function scoutPrompt(questions: string[]): string {
   return [
     'You are a scout for an AI Answer Share study. A UK shopper asks an AI assistant each question below.',
     'For EACH question:',
-    '1. Run a live web search with the question as a UK shopper would type it.',
+    '1. Run a live web search for the question with "UK" added, as a UK shopper would type it. Prefer UK pages and UK editions (uk.pcmag.com over pcmag.com).',
     '2. In "seen", list every result URL the search returned. If a result is a redirect link (for example vertexaisearch.cloud.google.com/grounding-api-redirect), resolve it to the real page URL first.',
     '3. In "cited", list the 3 to 8 URLs you would actually rely on and cite in a helpful shopping answer. Every cited URL must also be in "seen". Never invent a URL.',
-    '4. Leave forums, video sites and marketplaces (Reddit, YouTube, Amazon, eBay) out of "cited"; they can stay in "seen".',
+    '4. Leave forums, video sites and marketplaces (Reddit, YouTube, Amazon, eBay) out of "cited"; they can stay in "seen". Leave pages written for another country (US prices in dollars, US-only dealers or stores) out of "cited" too.',
     'Work fast: one search per question, resolve redirects with a single HEAD request each, and do not open or read the pages themselves.',
     'Do not write the shopping answers themselves. Do not contact anyone.',
     '',

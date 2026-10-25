@@ -120,6 +120,34 @@ export function tally(answers: Answer[]): (BoardRow & { pages: string[]; queries
 
 export const listedNonPublisher = (domain: string): boolean => NOT_PUBLISHERS.some((m) => domain.includes(m));
 
+/** Country-code endings that read as generic names, so they say nothing about the audience. */
+const GENERIC_CCTLDS = ['uk', 'io', 'co', 'ai', 'tv', 'me', 'fm', 'gg', 'so', 'ly'];
+
+/** A site under another country's domain (autohled.cz, idealo.de). Blankspace sells to UK publishers first. */
+export const foreignSite = (domain: string): boolean => {
+  const tld = domain.split('.').pop() ?? '';
+  return tld.length === 2 && !GENERIC_CCTLDS.includes(tld);
+};
+
+/**
+ * One lead per site across every run: a contact code confirmed beats one it couldn't, then
+ * the newest run, then the higher score. `runAt` is when the lead's run started.
+ */
+export function onePerSite<T extends { domain: string; verdict: string; score: number; runAt: string }>(leads: T[]): T[] {
+  const best = new Map<string, T>();
+  const rank = (l: T) => [l.verdict === 'verified' ? 1 : 0, l.runAt, l.score] as const;
+  for (const lead of leads) {
+    const held = best.get(lead.domain);
+    if (!held) {
+      best.set(lead.domain, lead);
+      continue;
+    }
+    const [a, b] = [rank(lead), rank(held)];
+    if (a[0] !== b[0] ? a[0] > b[0] : a[1] !== b[1] ? a[1] > b[1] : a[2] > b[2]) best.set(lead.domain, lead);
+  }
+  return [...best.values()].sort((x, y) => y.score - x.score);
+}
+
 export function isPublisher(domain: string, facts: SiteFacts | null): boolean {
   if (listedNonPublisher(domain)) return false;
   if (!facts) return true;
