@@ -95,7 +95,7 @@ export default function Check(props: { engine: EngineState; admin: boolean; onSt
           <span className="eyebrow">Live · UK buying questions</span>
           <h1>How often do AI answers send buyers to your site?</h1>
           <p>
-            Type a publisher’s site or a question a shopper would ask. Real AI agents search the web and answer, code counts who they
+            Type a publisher’s site or a question a shopper would ask. Real AI agents search the web and answer, automated checks count who they
             cite, checks how each site makes money, finds the right person and drafts the first email.
           </p>
         </div>

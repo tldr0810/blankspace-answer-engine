@@ -308,7 +308,7 @@ export function settleReview(raw: RawCheck[], quoteChecks: Map<string, ReviewChe
     if (r.answer === 'unsure') return { ...r, quoteCheck: null };
     if (!r.url || !r.quote) return { ...r, answer: 'unsure', note: `${r.note} (No quote given, so it does not count.)`.trim(), quoteCheck: null };
     const found = quoteChecks.get(`${r.url}\n${r.quote}`) ?? 'unreadable';
-    if (found === 'not_on_page') return { ...r, answer: 'unsure', note: `${r.note} (Code opened the page and the quote is not on it.)`.trim(), quoteCheck: found };
+    if (found === 'not_on_page') return { ...r, answer: 'unsure', note: `${r.note} (The verification layer opened the page and the quote is not on it.)`.trim(), quoteCheck: found };
     return { ...r, quoteCheck: found };
   });
   const decision: ReviewDecision = checks.some((c) => c.answer === 'no') ? 'reject' : checks.every((c) => c.answer === 'yes') ? 'pass' : 'unsure';
