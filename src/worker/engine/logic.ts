@@ -395,7 +395,8 @@ export interface RawCheck {
  * Code's ruling on the verifier's review. An answer needs a quote, and a quote code could read
  * but not find makes the answer unsure: the agent never gets past code. A page that blocks code
  * leaves the agent's reading standing, as a person would have to open it anyway. The decision
- * comes from the checks, not from the agent: any no rejects, all yes passes, else a person decides.
+ * comes from the checks, not from the agent: a no on publisher or page rejects, all yes passes, else
+ * a person decides (a wrong contact included: the site may still be worth writing to).
  */
 export function settleReview(raw: RawCheck[], quoteChecks: Map<string, ReviewCheck['quoteCheck']>, at: string): Omit<LeadReview, 'change'> {
   const checks: ReviewCheck[] = REVIEW_CHECKS.map((key) => {
@@ -407,7 +408,9 @@ export function settleReview(raw: RawCheck[], quoteChecks: Map<string, ReviewChe
     if (found === 'not_on_page') return { ...r, answer: 'unsure', note: `${r.note} (The verification layer opened the page and the quote is not on it.)`.trim(), quoteCheck: found };
     return { ...r, quoteCheck: found };
   });
-  const decision: ReviewDecision = checks.some((c) => c.answer === 'no') ? 'reject' : checks.every((c) => c.answer === 'yes') ? 'pass' : 'unsure';
+  // A wrong contact is a reason to find the right person, not to drop a good publisher.
+  const fails = checks.filter((c) => c.answer === 'no');
+  const decision: ReviewDecision = fails.some((c) => c.key !== 'contact') ? 'reject' : checks.every((c) => c.answer === 'yes') ? 'pass' : 'unsure';
   return { decision, checks, reviewedAt: at };
 }
 

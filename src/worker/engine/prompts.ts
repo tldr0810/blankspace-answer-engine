@@ -120,7 +120,7 @@ export function verifierPrompt(leads: ReviewInput[], pastCalls: { domain: string
     'Rules, as for any reviewer:',
     '- Every yes or no needs the page URL you read and a quote of one to three sentences copied word for word from that page. Code will open the URL and look for the quote; an answer whose quote is not on the page becomes unsure.',
     '- If you cannot open a page or the evidence is mixed, answer unsure and say why. Never answer no just because a page would not load.',
-    '- If the contact is wrong, missing a name, or out of date and you can find the right person on a public page, give them in "better_contact" with that page URL. Code will check their name is on it. Never guess a name or an email address.',
+    '- If you answer contact "no", or no person is named, and a public page names the right person (for example on an advertise or team page), you MUST give them in "better_contact" with that page URL. Code will check their name is on it. Never guess a name or an email address.',
     '- Work fast: use web search and open at most four pages per site.',
     '',
     ...(pastCalls.length

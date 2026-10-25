@@ -98,3 +98,12 @@ describe('learning', () => {
     expect(verifierRecord([r('pass', 'not_publisher'), r('reject', 'not_publisher'), r('unsure', 'fit'), r('pass')])).toEqual({ reviewed: 4, pass: 2, reject: 1, unsure: 1, called: 2, overturned: 1 });
   });
 });
+
+describe('a wrong contact', () => {
+  it('sends a good publisher to a person instead of holding it back', () => {
+    const c = (key: RawCheck['key'], answer: RawCheck['answer']): RawCheck => ({ key, answer, note: '', url: `https://x.co.uk/${key}`, quote: 'a passage on the page' });
+    const found = new Map(['publisher', 'contact', 'page'].map((k) => [`https://x.co.uk/${k}\na passage on the page`, 'on_page' as const]));
+    expect(settleReview([c('publisher', 'yes'), c('contact', 'no'), c('page', 'yes')], found, 't').decision).toBe('unsure');
+    expect(settleReview([c('publisher', 'no'), c('contact', 'no'), c('page', 'yes')], found, 't').decision).toBe('reject');
+  });
+});
