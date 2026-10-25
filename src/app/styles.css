@@ -1091,3 +1091,17 @@ button:active:not(:disabled):not(.primary), .button:active:not(.primary) { trans
   .top-cta { min-height: 38px; }
   .board .b-row { min-height: 40px; }
 }
+
+/* ── Leaderboard key: what the score, ticks and greyed rows mean, read before the rows ── */
+.board-key { list-style: none; margin: 0; padding: 12px 20px; display: grid; grid-template-columns: repeat(2, minmax(0, max-content)); gap: 8px 32px; font-size: 12.5px; color: var(--ink2); border-top: 1.5px dashed var(--hair); }
+.board-key li { display: inline-flex; align-items: center; gap: 6px; }
+.board-key .src-mark { margin: 0; }
+.board-key .k-n { font-family: var(--display); font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+.board-key .k-n small { color: var(--ink3); font-weight: 600; font-size: 11px; }
+.board-key .k-off { font-family: var(--mono); font-weight: 600; color: var(--ink); opacity: 0.45; }
+.eng-status small { font-weight: 500; color: var(--ink3); font-size: 11.5px; }
+.eng-status.quiet .dot { opacity: 0.35; }
+@media (max-width: 640px) {
+  .board-key { padding: 10px 14px; gap: 6px; grid-template-columns: minmax(0, 1fr); }
+  .board-key li { align-items: flex-start; }
+}

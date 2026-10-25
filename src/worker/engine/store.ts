@@ -244,7 +244,13 @@ export async function saveFacts(env: Env, facts: SiteFacts): Promise<void> {
 export async function boardFor(
   env: Env,
   runId: string,
-): Promise<{ rows: (BoardRow & { pages: string[]; queries: string[] })[]; total: number; questions: number; verdicts: Map<string, PageVerdict> }> {
+): Promise<{
+  rows: (BoardRow & { pages: string[]; queries: string[] })[];
+  total: number;
+  questions: number;
+  engineAnswers: Partial<Record<Engine, { answers: number; cited: number }>>;
+  verdicts: Map<string, PageVerdict>;
+}> {
   const answers = await runAnswers(env, runId);
   const verdicts = await pageVerdicts(env, [...new Set(answers.flatMap((a) => a.cited))]);
   const rows = tally(withoutDropped(answers, verdicts));
@@ -255,7 +261,13 @@ export async function boardFor(
     row.publisher = rule || f ? isPublisher(row.domain, f ?? null, rule) : listedNonPublisher(row.domain) ? false : null;
     row.verified = siteVerified(row.pages, verdicts);
   }
-  return { rows, total: answers.length, questions: new Set(answers.map((a) => a.query)).size, verdicts };
+  const engineAnswers: Partial<Record<Engine, { answers: number; cited: number }>> = {};
+  for (const a of answers) {
+    const e = (engineAnswers[a.engine] ??= { answers: 0, cited: 0 });
+    e.answers += 1;
+    if (a.cited.length) e.cited += 1;
+  }
+  return { rows, total: answers.length, questions: new Set(answers.map((a) => a.query)).size, engineAnswers, verdicts };
 }
 
 /* ───────── cited-page checks ───────── */
