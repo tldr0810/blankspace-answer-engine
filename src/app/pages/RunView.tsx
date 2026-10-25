@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { ENGINE_LABEL, ROLE_LABEL, STEPS, STEP_LABEL, VERTICAL_LABEL, type Role, type RunDetail } from '../../shared/engine';
 import { api } from '../api';
-import { ago, EngineBar, EngineTag, Icon, PageSkeleton, SourceMark, VerdictTag } from '../ui';
+import { ago, EngineBar, EngineTag, Icon, PageSkeleton, ReviewTag, SourceMark, VerdictTag } from '../ui';
 import { runTitle } from './Check';
 
 export default function RunView(props: { runId: string; admin: boolean; onChange: () => Promise<void> }) {
@@ -160,7 +160,10 @@ export default function RunView(props: { runId: string; admin: boolean; onChange
                   {l.contactName ?? l.contactRole ?? 'Contact pending'}
                   {l.contactName && l.contactRole ? ` · ${l.contactRole}` : ''}
                 </div>
-                <VerdictTag lead={l} />
+                <span className="row wrap">
+                  <VerdictTag lead={l} />
+                  <ReviewTag review={l.review} />
+                </span>
               </a>
             ))}
           </div>

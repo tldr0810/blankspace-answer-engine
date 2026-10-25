@@ -89,6 +89,16 @@ export interface VerifyResult {
   note: string;
 }
 
+/**
+ * A page's HTML, for checking the verifier's quotes. null when the site refused us or did not
+ * answer (the quote stays unchecked); empty when the page is gone (no quote can be on it).
+ */
+export async function fetchText(url: string): Promise<string | null> {
+  const page = await get(url);
+  if (!page || page.status === 401 || page.status === 403 || page.status === 429 || page.status >= 500) return null;
+  return page.status >= 400 ? '' : page.text;
+}
+
 /** Opens the page the profiler cited and checks the person's full name is really on it. */
 export async function verifyContact(name: string, sourceUrl: string): Promise<VerifyResult> {
   const page = await get(sourceUrl);

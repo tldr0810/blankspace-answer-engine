@@ -8,6 +8,7 @@
  *   enrich   code     ads.txt, a cited page, robots.txt, a few sites per tick
  *   profile  agent    owner, business model, best contact (one turn for all leads)
  *   verify   code     open each contact's source page, keep the name only if it is there
+ *   review   agent    a second agent reviews each lead against a checklist; code checks its quotes
  *   draft    code     first email from counted facts
  */
 
@@ -17,6 +18,7 @@ import {
   scoutRole,
   STEP_LABEL,
   type Engine,
+  type Lead,
   type Role,
   type Run,
   type RunKind,
@@ -27,9 +29,9 @@ import { credentialFor } from '../connect';
 import { now } from '../db';
 import { A2AError, safeErrorText } from '../a2a';
 import type { Env } from '../types';
-import { checkSite, verifyContact } from './fetchers';
-import { acceptAnswers, draftEmail, foreignSite, isPublisher, listedNonPublisher, score as scoreSite } from './logic';
-import { profilePrompt, profileSchema, scoutPrompt, scoutSchema } from './prompts';
+import { checkSite, fetchText, verifyContact } from './fetchers';
+import { acceptAnswers, draftEmail, foreignSite, isPublisher, listedNonPublisher, quoteOnPage, score as scoreSite, settleReview, type RawCheck } from './logic';
+import { profilePrompt, profileSchema, scoutPrompt, scoutSchema, verifierPrompt, verifierSchema } from './prompts';
 import {
   addEvent,
   appOrigin,
@@ -43,6 +45,7 @@ import {
   roleMap,
   runLeads,
   saveFacts,
+  saveReview,
   saveState,
   siteFacts,
   updateRun,
@@ -484,6 +487,144 @@ async function stepVerify(env: Env, run: Run, bag: Bag): Promise<StepResult> {
   for (const lead of await runLeads(env, run.id)) {
     if (lead.verdict === 'pending') await patchLead(env, lead.id, { verdict: 'no_person', verifyNote: 'No public page named a person in this role.' });
   }
+  return { next: 'review' };
+}
+
+const CONTACT_CHECK: Record<Lead['verdict'], string> = {
+  verified: 'code found this name on the source page',
+  not_found: 'code did NOT find this name on the source page, so only the role is used',
+  fetch_blocked: 'the source page blocked code, so the name is unchecked',
+  no_person: 'no person was named',
+  pending: 'not checked yet',
+};
+
+const httpUrl = (value: string | null | undefined): string | null => {
+  try {
+    const url = new URL(value ?? '');
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * The verifier, modelled on a maintainer reviewing a collector's records: another agent than the
+ * one that made the leads, a fixed checklist, a quote for every answer, unsure over a guess. Code
+ * opens every quoted page, and the agent can only hold a lead back or bring a contact code can
+ * confirm; it can never pass what code could not.
+ */
+async function stepReview(env: Env, run: Run, bag: Bag): Promise<StepResult> {
+  const leads = await runLeads(env, run.id);
+  if (!leads.length) return { next: 'draft' };
+  const roles = await roleMap(env);
+  const existing = bag.calls.verifier;
+  if (!existing) {
+    if (!roles.verifier) {
+      await addEvent(env, run.id, 'No verifier agent is assigned, so no second review this run.');
+      return { next: 'draft' };
+    }
+    const profiler = bag.calls.profiler?.agentId ?? roles.profiler;
+    if (roles.verifier === profiler) {
+      await addEvent(env, run.id, 'The verifier is the same agent as the profiler, and nobody reviews their own work, so no second review this run. Assign another agent in Settings.');
+      return { next: 'draft' };
+    }
+  }
+  const outcome = await driveCall(env, run, bag, {
+    role: 'verifier',
+    agentId: existing?.agentId ?? roles.verifier!,
+    prompt: verifierPrompt(
+      leads.map((l) => ({
+        domain: l.domain,
+        owner: l.owner,
+        companyType: l.companyType,
+        monetisation: l.monetisation,
+        contactRole: l.contactRole,
+        contactName: l.contactName,
+        contactSourceUrl: l.contactSourceUrl,
+        contactCheck: CONTACT_CHECK[l.verdict],
+        facts: l.facts
+          ? `ads.txt ${l.facts.adsTxtLines ? `${l.facts.adsTxtLines} lines` : 'none found'}, affiliate links ${l.facts.affiliate ? 'found' : 'not found'}, CDN ${l.facts.cdn}`
+          : 'not checked',
+        page: l.pages[0] ?? null,
+        questions: l.queries.slice(0, 3),
+      })),
+    ),
+    label: 'reviews',
+    name: 'The verifier',
+    giveUp: 'The leads go out without a second review.',
+  });
+  if (!existing && bag.calls.verifier?.taskId) {
+    await addEvent(env, run.id, `Asked the verifier, a different agent from the profiler, to review ${leads.length === 1 ? leads[0].domain : `${leads.length} leads`}.`);
+  }
+  if (outcome === 'settled') return { next: 'draft' };
+  if (outcome === 'pending') {
+    if (existing) await updateRun(env, run.id, { stepDetail: 'The verifier is reviewing' });
+    return { wait: 20_000 };
+  }
+  const call = bag.calls.verifier!;
+  try {
+    const parsed = verifierSchema.parse(extractJson(outcome.text));
+    // Open each quoted page once and look for every quote on it.
+    const pages = new Map<string, Promise<string | null>>();
+    const open = (url: string) => {
+      if (!pages.has(url)) pages.set(url, fetchText(url));
+      return pages.get(url)!;
+    };
+    const counts = { pass: 0, reject: 0, unsure: 0 };
+    for (const lead of leads) {
+      const site = parsed.sites.find((s) => s.domain.toLowerCase().replace(/^www\./, '') === lead.domain);
+      if (!site) continue;
+      const raw: RawCheck[] = site.checks
+        .filter((c): c is typeof c & { key: RawCheck['key'] } => ['publisher', 'contact', 'page'].includes(c.key))
+        .map((c) => ({ key: c.key, answer: c.answer, note: c.note.trim(), url: httpUrl(c.url), quote: c.quote }));
+      const found = new Map<string, 'on_page' | 'not_on_page' | 'unreadable'>();
+      await Promise.all(
+        raw.map(async (c) => {
+          if (!c.url || !c.quote || c.answer === 'unsure') return;
+          const html = await open(c.url);
+          found.set(`${c.url}\n${c.quote}`, html === null ? 'unreadable' : quoteOnPage(c.quote, html) ? 'on_page' : 'not_on_page');
+        }),
+      );
+      const settled = settleReview(raw, found, now());
+      let change: string | null = null;
+
+      // A contact the verifier brings counts only once code finds the name on its page.
+      const better = site.better_contact;
+      const betterUrl = httpUrl(better?.source_url);
+      if (better && betterUrl && lead.verdict !== 'verified') {
+        const result = await verifyContact(better.name, betterUrl);
+        if (result.verdict === 'verified') {
+          await patchLead(env, lead.id, {
+            contactName: better.name,
+            contactRole: better.role ?? lead.contactRole,
+            contactSourceUrl: betterUrl,
+            verdict: 'verified',
+            verifyNote: `Found by the verifier. ${result.note}`,
+          });
+          change = `Found ${better.name}${better.role ? `, ${better.role}` : ''}; code found the name on the source page.`;
+        }
+      }
+      // A checked name the verifier shows is out of date, with a quote code found, falls back to the role.
+      const contact = settled.checks.find((c) => c.key === 'contact');
+      if (!change && lead.verdict === 'verified' && contact?.answer === 'no' && contact.quoteCheck === 'on_page') {
+        await patchLead(env, lead.id, { verdict: 'not_found', verifyNote: `The verifier found ${lead.contactName} may no longer hold this role: ${contact.note}` });
+        change = `Held back ${lead.contactName}: may no longer hold the role. The email goes to the role.`;
+      }
+      await saveReview(env, lead.id, { ...settled, change });
+      counts[settled.decision] += 1;
+      await addEvent(
+        env,
+        run.id,
+        `The verifier reviewed ${lead.domain}: ${settled.decision === 'pass' ? 'passed every check' : settled.decision === 'reject' ? 'not a fit' : 'a person should decide'}.${change ? ` ${change}` : ''}`,
+      );
+    }
+    call.status = 'done';
+    await addEvent(env, run.id, `Review done: ${counts.pass} passed, ${counts.reject} held back, ${counts.unsure} for a person to decide.`);
+  } catch (error) {
+    call.status = 'failed';
+    await callError(env, call, problemText(error));
+    await addEvent(env, run.id, `The verifier's reply could not be read (${problemText(error).slice(0, 140)}).`);
+  }
   return { next: 'draft' };
 }
 
@@ -534,6 +675,7 @@ export async function tick(env: Env, runId: string): Promise<number | null> {
       case 'enrich': result = await stepEnrich(env, run, bag); break;
       case 'profile': result = await stepProfile(env, run, bag); break;
       case 'verify': result = await stepVerify(env, run, bag); break;
+      case 'review': result = await stepReview(env, run, bag); break;
       case 'draft': result = await stepDraft(env, run); break;
       default: result = { next: 'done' };
     }

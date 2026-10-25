@@ -5,10 +5,10 @@
  */
 
 import { useEffect, useState } from 'react';
-import { EDGE_CDNS, scoreParts, VERTICAL_LABEL, type EngineState, type Lead, type Verdict } from '../../shared/engine';
+import { EDGE_CDNS, REVIEW_CHECK_LABEL, scoreParts, VERTICAL_LABEL, type EngineState, type Lead, type LeadReview, type Verdict } from '../../shared/engine';
 import { api, ApiError } from '../api';
 import { isEmailAddress, joinEmail, mailtoHref, splitEmail, type EmailParts } from '../../shared/email';
-import { hostOf, Icon, PageSkeleton, VerdictTag } from '../ui';
+import { hostOf, Icon, PageSkeleton, ReviewTag, VerdictTag } from '../ui';
 
 export default function Leads(props: { engine: EngineState; admin: boolean; needPassword: () => void }) {
   // Refetch when a run finishes, so new leads show without a reload.
@@ -70,6 +70,12 @@ export default function Leads(props: { engine: EngineState; admin: boolean; need
                 <span>{text}</span>
               </li>
             ))}
+            {REVIEW_KEY.map(([d, text]) => (
+              <li key={d}>
+                <ReviewTag review={{ decision: d }} />
+                <span>{text}</span>
+              </li>
+            ))}
             <li>
               <span className="tag t-you">approved</span>
               <span>You checked the email and pressed Send. Skip hides a lead without deleting it.</span>
@@ -100,6 +106,12 @@ const KEY: [Verdict, string][] = [
   ['not_found', 'A name was suggested but the source page does not show it, so the email goes to the role.'],
   ['fetch_blocked', 'The source page refused our check. A person should look before sending.'],
   ['no_person', 'No public page names anyone in this role. Write to the role.'],
+];
+
+const REVIEW_KEY: [LeadReview['decision'], string][] = [
+  ['pass', 'A second agent, not the one that found the lead, checked it is a publisher, the contact is right and the cited page answers the question. Code found every quote it gave.'],
+  ['reject', 'The second agent showed, with a quote code found on the page, that one of those is not true. Kept at the bottom.'],
+  ['unsure', 'The second agent could not tell, or code could not find its quote. A person decides.'],
 ];
 
 function LeadRow(props: { lead: Lead; open: boolean; onToggle: () => void; admin: boolean; needPassword: () => void; onUpdate: (patch: Partial<Lead>) => void }) {
@@ -166,6 +178,7 @@ function LeadRow(props: { lead: Lead; open: boolean; onToggle: () => void; admin
         </span>
         <span className="row">
           <VerdictTag lead={lead} />
+          <ReviewTag review={lead.review} />
           {lead.status !== 'draft' && <span className={`tag ${lead.status === 'approved' ? 't-you' : 't-mute'}`}>{lead.status}</span>}
         </span>
       </div>
@@ -196,6 +209,16 @@ function LeadRow(props: { lead: Lead; open: boolean; onToggle: () => void; admin
                   </span>
                 </dd>
               </div>
+              {lead.review && (
+                <div>
+                  <dt>Second review</dt>
+                  <dd>
+                    <ReviewTag review={lead.review} />
+                    <ReviewChecks review={lead.review} />
+                    {lead.review.change && <span className="sub">{lead.review.change}</span>}
+                  </dd>
+                </div>
+              )}
               {lead.owner && (
                 <div>
                   <dt>Owner</dt>
@@ -304,6 +327,30 @@ function ScoreSum({ lead }: { lead: Lead }) {
             {got}
             <small>/{max}</small>
           </b>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+const ANSWER_MARK: Record<'yes' | 'no' | 'unsure', string> = { yes: 'Yes', no: 'No', unsure: 'Unsure' };
+
+function ReviewChecks({ review }: { review: LeadReview }) {
+  return (
+    <ul className="review-checks">
+      {review.checks.map((c) => (
+        <li key={c.key} className={`a-${c.answer}`}>
+          <span className="rc-head">
+            <b>{ANSWER_MARK[c.answer]}</b>
+            <span>{REVIEW_CHECK_LABEL[c.key]}</span>
+          </span>
+          {c.note && <span className="sub">{c.note}</span>}
+          {c.quote && <q className="sub">{c.quote}</q>}
+          {c.url && (
+            <a className="src" href={c.url} target="_blank" rel="noreferrer">
+              {c.quoteCheck === 'on_page' ? 'Quote found on' : c.quoteCheck === 'unreadable' ? 'Page blocked code' : 'Source'} <b>{hostOf(c.url)}</b>
+            </a>
+          )}
         </li>
       ))}
     </ul>

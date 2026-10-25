@@ -6,7 +6,7 @@
  * contacts. Code decides what a citation is, who ranks where, and whether a name stands.
  */
 
-import { AI_AGENTS, DROPPED_VERDICTS, ENGINE_LABEL, VERTICAL_LABEL, type BoardRow, type CheckMiss, type Engine, type PageVerdict, type SiteFacts, type Vertical, scoreParts } from '../../shared/engine';
+import { AI_AGENTS, DROPPED_VERDICTS, ENGINE_LABEL, VERTICAL_LABEL, type BoardRow, type CheckMiss, type Engine, type PageVerdict, type SiteFacts, type Vertical, scoreParts, REVIEW_CHECKS, type LeadReview, type ReviewCheck, type ReviewCheckKey, type ReviewDecision } from '../../shared/engine';
 
 /** Cited often, but not ad- or affiliate-funded publishers. */
 export const NOT_PUBLISHERS = [
@@ -269,6 +269,50 @@ export function nameOnPage(name: string, text: string): boolean {
   const last = parts[parts.length - 1].replace(/[^a-z'-]/g, '');
   const re = new RegExp(`(^|[^a-z@.])${first}(\\s+[a-z.'-]+){0,2}\\s+${last}([^a-z@]|$)`);
   return re.test(text);
+}
+
+/** Text for a word-for-word comparison: page text rules, plus curly quotes and dashes made plain. */
+const plainText = (text: string) =>
+  pageText(text)
+    .replace(/[‘’‛′]/g, "'")
+    .replace(/[“”„″]/g, '"')
+    .replace(/[‐‑‒–—―]/g, '-')
+    .replace(/…/g, '...')
+    .trim();
+
+/** Is this passage on the page word for word? Case, accents, spacing and quote marks are ignored; nothing else is. */
+export function quoteOnPage(quote: string, html: string): boolean {
+  const q = plainText(quote).replace(/^["'.\s]+|["'.\s]+$/g, '');
+  if (q.length < 12) return false;
+  return plainText(html).includes(q);
+}
+
+export interface RawCheck {
+  key: ReviewCheckKey;
+  answer: 'yes' | 'no' | 'unsure';
+  note: string;
+  url: string | null;
+  quote: string | null;
+}
+
+/**
+ * Code's ruling on the verifier's review. An answer needs a quote, and a quote code could read
+ * but not find makes the answer unsure: the agent never gets past code. A page that blocks code
+ * leaves the agent's reading standing, as a person would have to open it anyway. The decision
+ * comes from the checks, not from the agent: any no rejects, all yes passes, else a person decides.
+ */
+export function settleReview(raw: RawCheck[], quoteChecks: Map<string, ReviewCheck['quoteCheck']>, at: string): Omit<LeadReview, 'change'> {
+  const checks: ReviewCheck[] = REVIEW_CHECKS.map((key) => {
+    const r = raw.find((c) => c.key === key);
+    if (!r) return { key, answer: 'unsure', note: 'The verifier did not answer this.', url: null, quote: null, quoteCheck: null };
+    if (r.answer === 'unsure') return { ...r, quoteCheck: null };
+    if (!r.url || !r.quote) return { ...r, answer: 'unsure', note: `${r.note} (No quote given, so it does not count.)`.trim(), quoteCheck: null };
+    const found = quoteChecks.get(`${r.url}\n${r.quote}`) ?? 'unreadable';
+    if (found === 'not_on_page') return { ...r, answer: 'unsure', note: `${r.note} (Code opened the page and the quote is not on it.)`.trim(), quoteCheck: found };
+    return { ...r, quoteCheck: found };
+  });
+  const decision: ReviewDecision = checks.some((c) => c.answer === 'no') ? 'reject' : checks.every((c) => c.answer === 'yes') ? 'pass' : 'unsure';
+  return { decision, checks, reviewedAt: at };
 }
 
 const QUERY_STOPWORDS = new Set([

@@ -108,19 +108,21 @@ export const ENGINES = ['claude', 'gemini', 'gpt'] as const;
 export type Engine = (typeof ENGINES)[number];
 export const ENGINE_LABEL: Record<Engine, string> = { claude: 'Claude', gemini: 'Gemini', gpt: 'ChatGPT' };
 
-export const ROLES = ['scout_claude', 'scout_gemini', 'scout_gpt', 'profiler'] as const;
+export const ROLES = ['scout_claude', 'scout_gemini', 'scout_gpt', 'profiler', 'verifier'] as const;
 export type Role = (typeof ROLES)[number];
 export const ROLE_LABEL: Record<Role, string> = {
   scout_claude: 'Claude scout',
   scout_gemini: 'Gemini scout',
   scout_gpt: 'ChatGPT scout',
   profiler: 'Profiler',
+  verifier: 'Verifier',
 };
 export const ROLE_HELP: Record<Role, string> = {
   scout_claude: 'A Claude agent with web search. Answers the buying questions and lists the pages it relied on.',
   scout_gemini: 'A Gemini agent with Google search. Same job, second engine, so share is not one model’s taste.',
   scout_gpt: 'Optional. An OpenAI agent with live web search.',
   profiler: 'Researches who owns each site and who to talk to. Its names are checked by code before you see them.',
+  verifier: 'Optional. Reviews each lead the way an editor would: is it a publisher, is the contact right and current, does the cited page answer the question. Must be a different agent from the profiler, ideally another model family.',
 };
 export const scoutRole = (engine: Engine): Role => `scout_${engine}` as Role;
 
@@ -128,7 +130,7 @@ export type RunKind = 'vertical' | 'site' | 'question';
 export type RunStatus = 'running' | 'done' | 'failed';
 
 /** The steps a run walks through, in order. A question run stops after `enrich`. */
-export const STEPS = ['ask', 'score', 'enrich', 'profile', 'verify', 'draft'] as const;
+export const STEPS = ['ask', 'score', 'enrich', 'profile', 'verify', 'review', 'draft'] as const;
 export type Step = (typeof STEPS)[number] | 'done';
 export const STEP_LABEL: Record<(typeof STEPS)[number], string> = {
   ask: 'Ask the AI engines',
@@ -136,6 +138,7 @@ export const STEP_LABEL: Record<(typeof STEPS)[number], string> = {
   enrich: 'Check ads.txt, affiliate links, CDN, robots.txt',
   profile: 'Find owner and contact',
   verify: 'Fact-check contact on its source page',
+  review: 'Second agent reviews each lead',
   draft: 'Draft first email',
 };
 
@@ -267,6 +270,38 @@ export interface Lead {
   verifyNote: string | null;
   email: string | null;
   status: 'draft' | 'approved' | 'skipped';
+  /** The verifier agent's review, after code checked its quotes. Null when no verifier ran. */
+  review: LeadReview | null;
+}
+
+export const REVIEW_CHECKS = ['publisher', 'contact', 'page'] as const;
+export type ReviewCheckKey = (typeof REVIEW_CHECKS)[number];
+export const REVIEW_CHECK_LABEL: Record<ReviewCheckKey, string> = {
+  publisher: 'A publisher that earns from its traffic',
+  contact: 'Right contact, still in the role',
+  page: 'Cited page answers the question',
+};
+
+/** One question the verifier answered, and what code found when it opened the quoted page. */
+export interface ReviewCheck {
+  key: ReviewCheckKey;
+  answer: 'yes' | 'no' | 'unsure';
+  note: string;
+  url: string | null;
+  quote: string | null;
+  /** on_page: code found the quote word for word. not_on_page: it did not, so the answer became unsure. unreadable: the page blocked code, so the verifier's reading stands. */
+  quoteCheck: 'on_page' | 'not_on_page' | 'unreadable' | null;
+}
+
+/** pass: every check is yes. reject: a check is no, backed by a quote. unsure: a person decides. Code sets this from the checks, not the agent. */
+export type ReviewDecision = 'pass' | 'reject' | 'unsure';
+
+export interface LeadReview {
+  decision: ReviewDecision;
+  checks: ReviewCheck[];
+  /** What the verifier changed, already checked by code: a contact it found, or a name it showed is out of date. */
+  change: string | null;
+  reviewedAt: string;
 }
 
 export interface VerticalBoard {

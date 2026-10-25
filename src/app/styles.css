@@ -989,3 +989,13 @@ button:active:not(:disabled):not(.primary), .button:active:not(.primary) { trans
   .lead-key { grid-template-columns: 1fr; padding: 14px 16px; }
   .key-list li { grid-template-columns: 1fr; gap: 4px; }
 }
+
+/* Leads: the verifier's checks inside the facts panel. */
+.review-checks { list-style: none; margin: 2px 0 0; padding: 0; width: 100%; display: flex; flex-direction: column; gap: 8px; }
+.review-checks li { display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; line-height: 18px; }
+.review-checks .rc-head { display: flex; gap: 8px; align-items: baseline; }
+.review-checks .rc-head b { min-width: 46px; font-weight: 800; }
+.review-checks .a-yes .rc-head b { color: var(--eng); }
+.review-checks .a-no .rc-head b { color: var(--you); }
+.review-checks .a-unsure .rc-head b { color: var(--watch); }
+.review-checks q { font-style: italic; quotes: '“' '”'; }
