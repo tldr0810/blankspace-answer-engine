@@ -200,6 +200,14 @@ CREATE TABLE IF NOT EXISTS lead_reviews (
   reviewed_at TEXT NOT NULL
 );
 
+-- Where to write for a lead (LeadAddress as JSON): an address the verification layer read on a
+-- public page, or a record that it looked and found none.
+CREATE TABLE IF NOT EXISTS lead_addresses (
+  lead_id    TEXT PRIMARY KEY,
+  data       TEXT NOT NULL,
+  checked_at TEXT NOT NULL
+);
+
 -- What happened, in words, for the run's live feed.
 CREATE TABLE IF NOT EXISTS events (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,

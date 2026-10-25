@@ -70,7 +70,7 @@ const STEPS: Record<Key, StepDef> = {
       { cls: 't-eng', text: 'Engine check' },
     ],
     icon: <path d="M12 12a3.8 3.8 0 1 0 0-7.6 3.8 3.8 0 0 0 0 7.6zM4.5 20c.8-3.6 3.8-5.6 7.5-5.6s6.7 2 7.5 5.6" />,
-    what: 'A profiler agent works out who owns the site and who to talk to first. The verification layer opens the page it cited and keeps the name only if it is really there, otherwise the lead falls back to the role.',
+    what: 'A profiler agent works out who owns the site and who to talk to first. The verification layer opens the page it cited and keeps the name only if it is really there, otherwise the lead falls back to the role. It also reads the site’s contact pages for a published address, and never guesses one.',
     check: 'Name found on a public page, or role only',
   },
   email: {

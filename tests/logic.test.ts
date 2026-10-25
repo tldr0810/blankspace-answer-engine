@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  emailOnPage,
+  pageEmails,
+  pickAddress,
   acceptAnswers,
   foreignSite,
   onePerSite,
@@ -201,5 +204,35 @@ describe('onePerSite', () => {
       ['runrepeat.com', 'verified', '2026-10-25'],
       ['carwow.co.uk', 'verified', '2026-10-21T15'],
     ]);
+  });
+});
+
+describe('published addresses', () => {
+  const html = `<p>Advertising: <a href="mailto:Advertising@ExpertReviews.co.uk">email us</a></p>
+    <p>Privacy: privacy@expertreviews.co.uk · press &#64; expertreviews.co.uk is not one</p>
+    <p>Charlie: charlie.milligan [at] expertreviews.co.uk</p><img src="logo@2x.png">
+    <p>Agency: sales@otheragency.com</p>`;
+
+  it('reads mailto links, entities and [at] spellings, and skips asset names', () => {
+    const emails = pageEmails(html);
+    expect(emails).toContain('advertising@expertreviews.co.uk');
+    expect(emails).toContain('charlie.milligan@expertreviews.co.uk');
+    expect(emails).not.toContain('logo@2x.png');
+  });
+
+  it('prefers the named contact, then a commercial inbox on the site’s own domain', () => {
+    const emails = pageEmails(html);
+    expect(pickAddress(emails, 'expertreviews.co.uk', 'Charlie Milligan')).toEqual({ email: 'charlie.milligan@expertreviews.co.uk', kind: 'person' });
+    expect(pickAddress(emails, 'www.expertreviews.co.uk', null)).toEqual({ email: 'advertising@expertreviews.co.uk', kind: 'inbox' });
+  });
+
+  it('never picks support or privacy inboxes, or another company’s address', () => {
+    expect(pickAddress(['privacy@site.com', 'support@site.com', 'sales@agency.com'], 'site.com', null)).toBeNull();
+    expect(pickAddress(['hello@site.com', 'privacy@site.com'], 'site.com', null)).toEqual({ email: 'hello@site.com', kind: 'inbox' });
+  });
+
+  it('checks an address word for word on the page', () => {
+    expect(emailOnPage('advertising@expertreviews.co.uk', html)).toBe(true);
+    expect(emailOnPage('first.last@expertreviews.co.uk', html)).toBe(false);
   });
 });

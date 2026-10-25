@@ -215,6 +215,10 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1.5px solid var(--ink);
 .facts .big { font-size: 26px; line-height: 1; font-weight: 800; letter-spacing: -0.5px; }
 .facts .big small { font-size: 14px; font-weight: 600; color: var(--ink3); letter-spacing: 0; }
 .facts .src { margin-top: 2px; }
+.facts .addr { font-size: 12.5px; word-break: break-all; }
+/* A plain list inside a panel: the panel is the frame, so the list gets no second box. */
+ul.facts { background: none; border: none; border-radius: 0; padding: 0 0 0 20px; margin: 0; display: flex; flex-direction: column; gap: 8px; line-height: 22px; }
+ul.facts.loop-why { padding-left: 0; }
 .composer { background: var(--card); border: 1.5px solid var(--ink); border-radius: 14px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
 .composer header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 16px; border-bottom: 1.5px solid var(--ink); background: var(--paper); }
 .composer .cf { display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: center; gap: 8px; padding: 0 16px; min-height: 46px; border-bottom: 1.5px solid var(--hair); cursor: text; }
@@ -841,7 +845,7 @@ button:active:not(:disabled):not(.primary), .button:active:not(.primary) { trans
 .autopilot > .row > .switch { flex: 0 0 auto; }
 .autopilot > .facts { align-self: stretch; }
 .autopilot > .notice, .autopilot > .facts, .autopilot > .automation { margin: 0; }
-.automation { margin-top: 14px; padding: 14px; border: 1.5px dashed var(--hair); border-radius: 14px; background: var(--paper); }
+.automation { margin-top: 14px; padding: 14px 0 0; border-top: 1.5px dashed var(--hair); }
 .automation .eyebrow { display: block; margin-bottom: 4px; }
 .prompt { margin: 8px 0 0; padding: 12px; background: var(--card); border: 1.5px solid var(--ink); border-radius: 10px; font-family: var(--mono); font-size: 12px; white-space: pre-wrap; word-break: break-all; }
 
@@ -877,7 +881,7 @@ button:active:not(:disabled):not(.primary), .button:active:not(.primary) { trans
 .loop-hub b { font-size: 20px; font-weight: 800; line-height: 1.1; }
 .loop-hub p { margin: 4px 0 0; font-size: 13px; color: var(--ink2); line-height: 18px; }
 .hub-way + .hub-way { border-top: 1.5px dashed var(--hair); padding-top: 10px; }
-.loop-example { background: var(--paper2); border: 1.5px solid var(--ink); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.loop-example { background: var(--paper2); border: none; border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 .loop-example p { font-size: 14px; line-height: 20px; }
 .loop-guard { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--eng); }
 .loop-guard .icon { stroke-width: 2.2; }

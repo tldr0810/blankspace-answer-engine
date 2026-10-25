@@ -30,14 +30,16 @@ import { credentialFor } from '../connect';
 import { now } from '../db';
 import { A2AError, safeErrorText } from '../a2a';
 import type { Env } from '../types';
-import { checkSite, fetchText, verifyContact } from './fetchers';
+import { checkSite, fetchText, findAddress, verifyContact } from './fetchers';
 import { acceptAnswers, draftEmail, foreignSite, isPublisher, listedNonPublisher, quoteOnPage, score as scoreSite, settleReview, type RawCheck } from './logic';
 import { profilePrompt, profileSchema, scoutPrompt, scoutSchema, verifierPrompt, verifierSchema } from './prompts';
 import {
   addEvent,
   appOrigin,
   boardFor,
+  getLead,
   getRun,
+  leadsWithoutAddress,
   insertAnswers,
   insertLead,
   loadState,
@@ -46,6 +48,7 @@ import {
   roleMap,
   runLeads,
   saveFacts,
+  saveAddress,
   saveReview,
   saveSiteRule,
   siteRules,
@@ -63,6 +66,8 @@ const SITE_QUESTIONS = 5;
 const QUESTIONS_PER_TURN = 5;
 const ENRICH_PER_TICK = 3;
 const VERIFY_PER_TICK = 3;
+/** Each address search opens up to 6 of the site's pages. */
+const ADDRESSES_PER_TICK = 2;
 const PAGES_PER_TICK = 10;
 /** Wall-clock limit for one agent turn, counted from its submit. */
 const TURN_DEADLINE_MS = 25 * 60_000;
@@ -98,6 +103,8 @@ interface Bag {
   candidates: string[];
   enriched: number;
   verified: number;
+  /** Addresses the profiler suggested, by lead id, until the verification layer checks them. */
+  emails?: Record<string, { email: string | null; url: string | null }>;
   tickErrors?: number;
 }
 
@@ -450,6 +457,7 @@ async function stepProfile(env: Env, run: Run, bag: Bag): Promise<StepResult> {
       if (!p) continue;
       const name = p.contact_name && p.contact_source_url ? p.contact_name : null;
       if (name) named += 1;
+      if (p.contact_email) (bag.emails ??= {})[lead.id] = { email: p.contact_email, url: p.email_source_url };
       await patchLead(env, lead.id, {
         owner: p.owner,
         companyType: p.company_type,
@@ -499,7 +507,53 @@ async function stepVerify(env: Env, run: Run, bag: Bag): Promise<StepResult> {
   for (const lead of await runLeads(env, run.id)) {
     if (lead.verdict === 'pending') await patchLead(env, lead.id, { verdict: 'no_person', verifyNote: 'No public page named a person in this role.' });
   }
+  // Then where to write: an address only counts once it is read on a public page.
+  const unaddressed = (await runLeads(env, run.id)).filter((l) => !l.address);
+  for (const lead of unaddressed.slice(0, ADDRESSES_PER_TICK)) {
+    const address = await lookForAddress(lead, bag.emails?.[lead.id]);
+    await saveAddress(env, lead.id, address);
+    await addEvent(
+      env,
+      run.id,
+      address.email
+        ? `Found ${address.email} for ${lead.domain} on ${new URL(address.sourceUrl!).pathname || '/'}.`
+        : `No published address for ${lead.domain}: ${address.note}`,
+    );
+  }
+  if (unaddressed.length > ADDRESSES_PER_TICK) return { wait: 500 };
   return { next: 'review' };
+}
+
+/** Pages a lead's address may be on: the verified contact's own page comes first. */
+export function lookForAddress(lead: Lead, suggested?: { email: string | null; url: string | null }) {
+  const named = lead.verdict === 'verified' && lead.contactName ? lead.contactName : null;
+  const extra = named && lead.contactSourceUrl ? [lead.contactSourceUrl] : [];
+  return findAddress(lead.domain, named, suggested ?? { email: null, url: null }, extra);
+}
+
+/**
+ * Cron: leads from runs before addresses were looked for (or whose search was cut off) get one,
+ * a couple per tick, and a draft still waiting on a person gets the address in its To line.
+ */
+export async function sweepAddresses(env: Env, limit = 2): Promise<number> {
+  const ids = await leadsWithoutAddress(env, limit);
+  for (const id of ids) {
+    const lead = await getLead(env, id);
+    if (!lead) continue;
+    const address = await lookForAddress(lead);
+    await saveAddress(env, id, address);
+    if (lead.email && lead.status === 'draft') {
+      const email = withAddress(lead.email, address);
+      if (email !== lead.email) await patchLead(env, id, { email });
+    }
+  }
+  return ids.length;
+}
+
+/** Puts a found address in the draft's To line, unless a person already filled one in. */
+export function withAddress(email: string, address: Lead['address']): string {
+  if (!address?.email || /^To:/im.test(email.split('\n\n')[0])) return email;
+  return `To: ${address.email}\n${email}`;
 }
 
 const CONTACT_CHECK: Record<Lead['verdict'], string> = {
@@ -667,7 +721,7 @@ async function stepDraft(env: Env, run: Run): Promise<StepResult> {
       contactName: verified ? lead.contactName : null,
       reportUrl: `${origin}/#report/${run.id}/${lead.domain}`,
     });
-    await patchLead(env, lead.id, { email });
+    await patchLead(env, lead.id, { email: withAddress(email, lead.address) });
   }
   await addEvent(env, run.id, `Drafted ${leads.length} first ${leads.length === 1 ? 'email' : 'emails'}. Nothing is sent until a person approves.`);
   return { next: 'done' };
