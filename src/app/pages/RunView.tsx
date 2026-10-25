@@ -69,7 +69,7 @@ export default function RunView(props: { runId: string; admin: boolean; onChange
             <span key={s} className="row" style={{ flex: i < steps.length - 1 ? '1 1 auto' : '0 0 auto', gap: 0 }}>
               <span className={`sp ${i < at ? 'done' : i === at && live ? 'now' : ''}`}>
                 <span className="n">{i < at ? <Icon name="check" size={12} /> : i + 1}</span>
-                {STEP_LABEL[s]}
+                <span className="lbl">{STEP_LABEL[s]}</span>
               </span>
               {i < steps.length - 1 && <span className={`conn ${i < at ? 'done' : ''}`} />}
             </span>
@@ -114,7 +114,7 @@ export default function RunView(props: { runId: string; admin: boolean; onChange
                     style={{ '--i': i } as CSSProperties}
                   >
                     <span className="d">
-                      {r.domain}
+                      <span className="dn">{r.domain}</span>
                       <SourceMark verified={r.verified} />
                     </span>
                     <EngineBar byEngine={r.byEngine} engines={run.engines} max={max} />

@@ -17,6 +17,8 @@ export default function Leads(props: { engine: EngineState; admin: boolean; need
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'verified' | 'approved'>('all');
+  // On phones the tag key folds away so the list starts on the first screen.
+  const [keyOpen, setKeyOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,7 +66,11 @@ export default function Leads(props: { engine: EngineState; admin: boolean; need
             Share of answers says how much AI already leans on the site. The other three say it earns from traffic and could put a price on AI bots at its CDN ({EDGE_CDNS.join(', ')}). Open a row to see its sum.
           </p>
         </div>
-        <div className="lk-groups">
+        <button type="button" className="sm lk-toggle" aria-expanded={keyOpen} onClick={() => setKeyOpen((o) => !o)}>
+          {keyOpen ? 'Hide what the tags mean' : 'What the tags mean'}
+          <Icon name="chevron" className={`chev ${keyOpen ? 'open' : ''}`} />
+        </button>
+        <div className={`lk-groups ${keyOpen ? '' : 'lk-closed'}`}>
           <div>
             <span className="eyebrow">Contact</span>
             <ul className="key-list">
