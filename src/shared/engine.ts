@@ -397,6 +397,8 @@ export interface VerticalBoard {
   total: number;
   engines: Engine[];
   questions: number;
+  /** Per engine: answers stored, and how many of them cited at least one page. */
+  engineAnswers: Partial<Record<Engine, { answers: number; cited: number }>>;
   rows: BoardRow[];
 }
 

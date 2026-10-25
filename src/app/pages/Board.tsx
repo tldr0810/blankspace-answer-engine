@@ -1,11 +1,25 @@
 /** AI answer share by vertical: the monthly leaderboard publishers would want to be on. */
 
 import { useState, type CSSProperties } from 'react';
-import { VERTICALS, VERTICAL_LABEL, type EngineState, type Run, type Vertical } from '../../shared/engine';
+import { ENGINE_LABEL, VERTICALS, VERTICAL_LABEL, type Engine, type EngineState, type Run, type Vertical, type VerticalBoard } from '../../shared/engine';
 import { api, ApiError } from '../api';
 import SiteDrawer from '../components/SiteDrawer';
 import { markTour } from '../components/Tour';
-import { ago, EngineBar, EngineTag, Icon, SourceMark } from '../ui';
+import { ago, ENGINE_VAR, EngineBar, Icon, SourceMark } from '../ui';
+
+/** One engine's part of this run: how many answers came back, and whether any of them named a page. */
+function EngineStatus({ board, engine }: { board: VerticalBoard; engine: Engine }) {
+  const got = board.engineAnswers?.[engine];
+  const note = !got ? 'no answers this run' : got.cited === 0 ? `${got.answers} answers, no pages cited` : `cited pages in ${got.cited} answers`;
+  const quiet = !got || got.cited === 0;
+  return (
+    <span className={`tag t-mute eng-status${quiet ? ' quiet' : ''}`}>
+      <i className="dot" style={{ background: ENGINE_VAR[engine] }} />
+      {ENGINE_LABEL[engine]}
+      <small>{note}</small>
+    </span>
+  );
+}
 
 const remembered = (): Vertical => {
   try {
@@ -61,7 +75,7 @@ export default function Board(props: { engine: EngineState; admin: boolean; onSt
           <h1>Who AI shopping answers lean on</h1>
           <p>
             Every buying question in a vertical, asked to each engine. A site’s bar is how many of those answers cited at least one of its
-            pages. Greyed rows are marketplaces, forums or brands, not publishers.
+            pages.
           </p>
         </div>
         <button onClick={() => void rerun()} disabled={busy || props.engine.engines.length === 0}>
@@ -84,16 +98,34 @@ export default function Board(props: { engine: EngineState; admin: boolean; onSt
             <h2>{VERTICAL_LABEL[vertical]}</h2>
             {board && (
               <p>
-                {board.total} answers · {board.questions} questions × {board.engines.length} engines · {board.seed ? 'first run, 21 Oct 2026' : ago(board.runAt)}
+                {board.questions} questions · {board.total} answers came back · {board.seed ? 'first run, 21 Oct 2026' : ago(board.runAt)}
               </p>
             )}
           </div>
           <div className="legend">
-            {(board?.engines ?? []).map((e) => (
-              <EngineTag key={e} engine={e} />
-            ))}
+            {board?.engines.map((e) => <EngineStatus key={e} board={board} engine={e} />)}
           </div>
         </div>
+        {board && rows.length > 0 && (
+          <ul className="board-key" aria-label="How to read this board">
+            <li>
+              <b className="k-n">
+                {rows[0].answers}
+                <small>/{board.total}</small>
+              </b>
+              cited in {rows[0].answers} of the {board.total} answers; the bar's colour shows which AI
+            </li>
+            <li>
+              <SourceMark verified /> a cited page was opened and covers the question
+            </li>
+            <li>
+              <SourceMark verified={false} /> the site blocks automated checks, so not confirmed yet
+            </li>
+            <li>
+              <span className="k-off">greyed</span> not a publisher (a shop, dealer, brand or forum, or no ads or affiliate links), so not a lead
+            </li>
+          </ul>
+        )}
         {!board ? (
           <p className="empty">No run for this vertical yet.</p>
         ) : (
@@ -120,8 +152,7 @@ export default function Board(props: { engine: EngineState; admin: boolean; onSt
       </section>
       {board && (
         <p className="muted small src-legend">
-          <SourceMark verified /> automated checks opened a cited page and it covers the question · <SourceMark verified={false} /> the site blocks
-          automated checks. Pages that are gone or off topic are left out of the counts ({props.engine.sources.dropped} so far, of{' '}
+          Pages that are gone or off topic are left out of the counts ({props.engine.sources.dropped} so far, of{' '}
           {props.engine.sources.ok + props.engine.sources.dropped + props.engine.sources.blocked} checked). Pick any site to see the pages AI read.{' '}
           <a href={`#run/${board.runId}`}>See how this run went</a>.
         </p>

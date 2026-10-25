@@ -118,7 +118,7 @@ export function engineRoutes(adminOk: AdminCheck) {
     for (const vertical of VERTICALS) {
       const run = latest.find((r) => r.vertical === vertical);
       if (!run) continue;
-      const { rows, total, questions } = await boardFor(c.env, run.id);
+      const { rows, total, questions, engineAnswers } = await boardFor(c.env, run.id);
       boards.push({
         vertical,
         runId: run.id,
@@ -127,6 +127,7 @@ export function engineRoutes(adminOk: AdminCheck) {
         total,
         engines: run.engines,
         questions,
+        engineAnswers,
         rows: rows.slice(0, 15).map(({ pages: _p, queries: _q, ...row }) => row),
       });
     }
