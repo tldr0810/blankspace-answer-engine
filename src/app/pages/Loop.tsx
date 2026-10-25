@@ -8,6 +8,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { VERTICAL_LABEL, type EngineState, type Lead } from '../../shared/engine';
 import { splitEmail } from '../../shared/email';
 import { api } from '../api';
+import { markTour } from '../components/Tour';
 import { Icon } from '../ui';
 
 /* ───────── geometry: a 700 × 720 stage, scaled down to fit ───────── */
@@ -230,6 +231,7 @@ export default function Loop(props: { engine: EngineState }) {
       if (next === 0) {
         moveTo(START + 360);
         setPlaying(false);
+        markTour('loop');
       } else moveTo(angleOf(next));
     }, STEP_MS);
     return () => window.clearTimeout(t);
@@ -238,6 +240,7 @@ export default function Loop(props: { engine: EngineState }) {
   const panelRef = useRef<HTMLElement>(null);
   const pick = (i: number) => {
     setPlaying(false);
+    markTour('loop');
     // On phones the panel sits under the track, so bring it into view.
     if (compact) panelRef.current?.scrollIntoView({ behavior: motionOk() ? 'smooth' : 'auto', block: 'start' });
     setActive(i);
@@ -345,7 +348,7 @@ export default function Loop(props: { engine: EngineState }) {
       </div>
 
       <div className="loop">
-        <div className="loop-stage" ref={wrapRef}>
+        <div className="loop-stage" ref={wrapRef} data-tour="loop">
           {compact ? (
             <ol className="vtrack">
               {ORDER.map((k, i) => {

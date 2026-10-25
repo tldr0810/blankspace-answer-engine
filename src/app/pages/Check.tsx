@@ -110,7 +110,7 @@ export default function Check(props: { engine: EngineState; admin: boolean; onSt
             A buying question
           </button>
         </div>
-        <div className="check-row">
+        <div className="check-row" data-tour="live">
           <input
             id="check-text"
             type="text"

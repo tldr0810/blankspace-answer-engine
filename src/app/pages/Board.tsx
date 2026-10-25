@@ -4,6 +4,7 @@ import { useState, type CSSProperties } from 'react';
 import { VERTICALS, VERTICAL_LABEL, type EngineState, type Run, type Vertical } from '../../shared/engine';
 import { api, ApiError } from '../api';
 import SiteDrawer from '../components/SiteDrawer';
+import { markTour } from '../components/Tour';
 import { ago, EngineBar, EngineTag, Icon, SourceMark } from '../ui';
 
 const remembered = (): Vertical => {
@@ -99,7 +100,7 @@ export default function Board(props: { engine: EngineState; admin: boolean; onSt
           <ol className="board big pick" key={board.runId}>
             {rows.map((r, i) => (
               <li key={r.domain} className={r.publisher === false ? 'off' : ''} style={{ '--i': i } as CSSProperties}>
-                <button type="button" className="b-row" aria-haspopup="dialog" aria-expanded={open === r.domain} onClick={() => setOpen(r.domain)}>
+                <button type="button" className="b-row" data-tour={i === 0 ? 'board' : undefined} aria-haspopup="dialog" aria-expanded={open === r.domain} onClick={() => { markTour('board'); setOpen(r.domain); }}>
                   <span className="rk">{i + 1}</span>
                   <span className="d">
                     {r.domain}
