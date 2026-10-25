@@ -52,7 +52,7 @@ export default function Leads(props: { engine: EngineState; admin: boolean; need
       </div>
 
       <section className="card lead-key" aria-label="How to read this list">
-        <div>
+        <div className="lk-score">
           <span className="eyebrow">Score, out of 100</span>
           <p className="score-sum">
             <b>60</b> × share of AI answers that cite the site <i>+</i> <b>15</b> runs ads (ads.txt) <i>+</i> <b>15</b> uses affiliate links <i>+</i> <b>10</b> sits on an edge CDN
@@ -61,26 +61,42 @@ export default function Leads(props: { engine: EngineState; admin: boolean; need
             Share of answers says how much AI already leans on the site. The other three say it earns from traffic and could put a price on AI bots at its CDN ({EDGE_CDNS.join(', ')}). Open a row to see its sum.
           </p>
         </div>
-        <div>
-          <span className="eyebrow">Status</span>
-          <ul className="key-list">
-            {KEY.map(([v, text]) => (
-              <li key={v}>
-                <VerdictTag lead={{ verdict: v }} />
-                <span>{text}</span>
+        <div className="lk-groups">
+          <div>
+            <span className="eyebrow">Contact</span>
+            <ul className="key-list">
+              {KEY.map(([v, text]) => (
+                <li key={v}>
+                  <VerdictTag lead={{ verdict: v }} />
+                  <span>{text}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <span className="eyebrow">Second review</span>
+            <ul className="key-list">
+              {REVIEW_KEY.map(([d, text]) => (
+                <li key={d}>
+                  <ReviewTag review={{ decision: d }} />
+                  <span>{text}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <span className="eyebrow">You</span>
+            <ul className="key-list">
+              <li>
+                <span className="tag t-you">approved</span>
+                <span>You pressed Send on the email.</span>
               </li>
-            ))}
-            {REVIEW_KEY.map(([d, text]) => (
-              <li key={d}>
-                <ReviewTag review={{ decision: d }} />
-                <span>{text}</span>
+              <li>
+                <span className="tag t-mute">skipped</span>
+                <span>Set aside. Restore brings it back.</span>
               </li>
-            ))}
-            <li>
-              <span className="tag t-you">approved</span>
-              <span>You checked the email and pressed Send. Skip hides a lead without deleting it.</span>
-            </li>
-          </ul>
+            </ul>
+          </div>
         </div>
       </section>
 
@@ -102,15 +118,15 @@ export default function Leads(props: { engine: EngineState; admin: boolean; need
 }
 
 const KEY: [Verdict, string][] = [
-  ['verified', 'Automated checks opened the source page and found the person named there.'],
-  ['not_found', 'A name was suggested but the source page does not show it, so the email goes to the role.'],
-  ['fetch_blocked', 'The source page refused our check. A person should look before sending.'],
-  ['no_person', 'No public page names anyone in this role. Write to the role.'],
+  ['verified', 'Name found on the source page.'],
+  ['not_found', 'Name not on the source page. Write to the role.'],
+  ['fetch_blocked', 'The source page blocked the check. Look before sending.'],
+  ['no_person', 'No public page names anyone. Write to the role.'],
 ];
 
 const REVIEW_KEY: [LeadReview['decision'], string][] = [
-  ['pass', 'A second agent, not the one that found the lead, checked it is a publisher, the contact is right and the cited page answers the question. The verification layer found every quote it gave on its page.'],
-  ['reject', 'The second agent showed, with a quote the verification layer found on the page, that one of those is not true. Kept at the bottom.'],
+  ['pass', 'A second agent passed all three checks, each backed by a quote found on the page.'],
+  ['reject', 'A second agent showed, with a quote, it is not a fit. Kept at the bottom.'],
   ['unsure', 'The second agent could not tell, or its quote was not on the page. A person decides.'],
 ];
 
