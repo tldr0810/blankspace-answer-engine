@@ -118,14 +118,15 @@ export function engineRoutes(adminOk: AdminCheck) {
     for (const vertical of VERTICALS) {
       const run = latest.find((r) => r.vertical === vertical);
       if (!run) continue;
-      const { rows, total, questions, engineAnswers } = await boardFor(c.env, run.id);
+      const { rows, total, questions, engineAnswers, engines, silent } = await boardFor(c.env, run.id);
       boards.push({
         vertical,
         runId: run.id,
         runAt: run.startedAt,
         seed: run.seed,
         total,
-        engines: run.engines,
+        engines,
+        silent,
         questions,
         engineAnswers,
         rows: rows.slice(0, 15).map(({ pages: _p, queries: _q, ...row }) => row),
@@ -196,6 +197,8 @@ export function engineRoutes(adminOk: AdminCheck) {
       events,
       board: board.rows.slice(0, 20).map(({ pages: _p, queries: _q, ...row }) => row),
       total: board.total,
+      engines: board.engines,
+      silent: board.silent,
       leads: adminOk(c) ? leads : leads.map(publicLead),
       calls,
     };
@@ -211,7 +214,7 @@ export function engineRoutes(adminOk: AdminCheck) {
     const run = await getRun(c.env, c.req.param('id'));
     const domain = normalizeDomain(c.req.param('domain'));
     if (!run || !domain || !run.vertical) throw new HttpError(404, 'not_found', 'No such report.');
-    const { rows, total, verdicts } = await boardFor(c.env, run.id);
+    const { rows, total, verdicts, engines, silent } = await boardFor(c.env, run.id);
     const index = rows.findIndex((r) => r.domain === domain);
     const row = index >= 0 ? rows[index] : null;
     const [facts, leads] = await Promise.all([siteFacts(c.env, [domain]), runLeads(c.env, run.id)]);
@@ -222,7 +225,8 @@ export function engineRoutes(adminOk: AdminCheck) {
       runId: run.id,
       runAt: run.startedAt,
       total,
-      engines: run.engines,
+      engines,
+      silent,
       rank: row ? rows.filter((r) => r.publisher !== false).findIndex((r) => r.domain === domain) + 1 || null : null,
       row: row ? { domain: row.domain, answers: row.answers, citations: row.citations, byEngine: row.byEngine, publisher: row.publisher, verified: row.verified } : null,
       board: rows.filter((r) => r.publisher !== false).slice(0, 10).map(({ pages: _p, queries: _q, ...r }) => r),

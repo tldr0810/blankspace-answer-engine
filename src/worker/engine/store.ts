@@ -24,7 +24,7 @@ import {
 } from '../../shared/engine';
 import { getSetting, now, setSetting } from '../db';
 import type { Env } from '../types';
-import { domainOf, isPublisher, listedNonPublisher, onePerSite, score, siteVerified, tally, withoutDropped, type Answer } from './logic';
+import { countedAnswers, domainOf, isPublisher, listedNonPublisher, onePerSite, score, siteVerified, tally, withoutDropped, type Answer } from './logic';
 
 const json = <T>(value: string | null | undefined, fallback: T): T => {
   if (!value) return fallback;
@@ -239,7 +239,8 @@ export async function saveFacts(env: Env, facts: SiteFacts): Promise<void> {
 
 /**
  * A run's board: tallied answers, with the publisher flag from whatever code has checked.
- * Cited pages code found dead or off topic are left out before counting.
+ * Cited pages code found dead or off topic are left out before counting, and so are the answers
+ * of an engine that cited nothing in the whole run.
  */
 export async function boardFor(
   env: Env,
@@ -250,8 +251,11 @@ export async function boardFor(
   questions: number;
   engineAnswers: Partial<Record<Engine, { answers: number; cited: number }>>;
   verdicts: Map<string, PageVerdict>;
+  engines: Engine[];
+  silent: Engine[];
 }> {
-  const answers = await runAnswers(env, runId);
+  const all = await runAnswers(env, runId);
+  const { answers, engines, silent } = countedAnswers(all);
   const verdicts = await pageVerdicts(env, [...new Set(answers.flatMap((a) => a.cited))]);
   const rows = tally(withoutDropped(answers, verdicts));
   const [facts, rules] = await Promise.all([siteFacts(env, rows.slice(0, 40).map((r) => r.domain)), siteRules(env)]);
@@ -262,12 +266,12 @@ export async function boardFor(
     row.verified = siteVerified(row.pages, verdicts);
   }
   const engineAnswers: Partial<Record<Engine, { answers: number; cited: number }>> = {};
-  for (const a of answers) {
+  for (const a of all) {
     const e = (engineAnswers[a.engine] ??= { answers: 0, cited: 0 });
     e.answers += 1;
     if (a.cited.length) e.cited += 1;
   }
-  return { rows, total: answers.length, questions: new Set(answers.map((a) => a.query)).size, engineAnswers, verdicts };
+  return { rows, total: answers.length, questions: new Set(answers.map((a) => a.query)).size, engineAnswers, verdicts, engines, silent };
 }
 
 /* ───────── cited-page checks ───────── */

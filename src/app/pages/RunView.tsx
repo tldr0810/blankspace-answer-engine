@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { ENGINE_LABEL, ORIGIN_HELP, ROLE_LABEL, STEPS, STEP_LABEL, VERTICAL_LABEL, type Role, type RunDetail } from '../../shared/engine';
 import { api } from '../api';
-import { ago, EngineBar, EngineTag, Icon, OriginTag, PageSkeleton, ReviewTag, SourceMark, VerdictTag } from '../ui';
+import { ago, EngineBar, EngineTag, Icon, OriginTag, PageSkeleton, ReviewTag, SilentEngines, SourceMark, VerdictTag } from '../ui';
 import { runTitle } from './Check';
 
 export default function RunView(props: { runId: string; admin: boolean; onChange: () => Promise<void> }) {
@@ -41,6 +41,7 @@ export default function RunView(props: { runId: string; admin: boolean; onChange
   const at = run.step === 'done' ? steps.length : steps.indexOf(run.step as (typeof STEPS)[number]);
   const max = Math.max(1, ...detail.board.map((r) => r.answers));
   const perEngine = run.questions.length;
+  const counted = detail.engines ?? run.engines;
 
   return (
     <div className="stack">
@@ -103,11 +104,12 @@ export default function RunView(props: { runId: string; admin: boolean; onChange
           ) : (
             <>
               <div className="legend">
-                {run.engines.map((e) => (
+                {counted.map((e) => (
                   <EngineTag key={e} engine={e} />
                 ))}
                 <span className="muted small">Bar = answers citing the site, out of {perEngine} per engine</span>
               </div>
+              <SilentEngines engines={detail.silent ?? []} />
               <ol className="board">
                 {detail.board.slice(0, 12).map((r, i) => (
                   <li
@@ -119,7 +121,7 @@ export default function RunView(props: { runId: string; admin: boolean; onChange
                       <span className="dn">{r.domain}</span>
                       <SourceMark verified={r.verified} />
                     </span>
-                    <EngineBar byEngine={r.byEngine} engines={run.engines} max={max} />
+                    <EngineBar byEngine={r.byEngine} engines={counted} max={max} />
                     <span className="n">{r.answers}</span>
                   </li>
                 ))}

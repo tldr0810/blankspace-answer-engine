@@ -395,7 +395,10 @@ export interface VerticalBoard {
   runAt: string;
   seed: boolean;
   total: number;
+  /** Engines whose answers are counted. */
   engines: Engine[];
+  /** Engines that were asked but cited nothing in the whole run, so their answers are left out. */
+  silent: Engine[];
   questions: number;
   /** Per engine: answers stored, and how many of them cited at least one page. */
   engineAnswers: Partial<Record<Engine, { answers: number; cited: number }>>;
@@ -418,6 +421,8 @@ export interface RunDetail {
   events: RunEvent[];
   board: BoardRow[];
   total: number;
+  engines: Engine[];
+  silent: Engine[];
   leads: Lead[];
   calls: { role: string; label: string; state: string; error: string | null }[];
 }
@@ -430,6 +435,7 @@ export interface SiteReport {
   runAt: string;
   total: number;
   engines: Engine[];
+  silent: Engine[];
   rank: number | null;
   row: BoardRow | null;
   board: BoardRow[];

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { AI_AGENTS, ENGINE_LABEL, VERTICAL_LABEL, type CheckMiss, type SiteFacts, type SiteReport } from '../../shared/engine';
 import { api } from '../api';
 import SiteDrawer from '../components/SiteDrawer';
-import { EngineBar, EngineTag, Icon, PageSkeleton, SourceMark, VerdictTag } from '../ui';
+import { EngineBar, EngineTag, Icon, PageSkeleton, SilentEngines, SourceMark, VerdictTag } from '../ui';
 
 export default function Report(props: { runId: string; domain: string }) {
   const [report, setReport] = useState<SiteReport | null>(null);
@@ -69,6 +69,7 @@ export default function Report(props: { runId: string; domain: string }) {
               <EngineTag key={e} engine={e} />
             ))}
           </div>
+          <SilentEngines engines={report.silent ?? []} />
           <ol className="board pick">
             {(report.board.some((r) => r.domain === report.domain)
               ? report.board

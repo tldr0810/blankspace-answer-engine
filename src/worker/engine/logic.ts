@@ -92,6 +92,26 @@ export function acceptAnswers(engine: Engine, asked: string[], raw: unknown): { 
   return { answers: asked.filter((q) => byQuery.has(q)).map((q) => byQuery.get(q)!), dropped };
 }
 
+/**
+ * The answers that count. An engine that cited nothing across a whole run had no working search
+ * (ChatGPT's scout scraping a search page and getting a bot check, say). Its empty answers are not
+ * answers that cited no one, so they stay out of the totals and the engine is reported as silent.
+ */
+export function countedAnswers(answers: Answer[]): { answers: Answer[]; engines: Engine[]; silent: Engine[] } {
+  const asked = [...new Set(answers.map((a) => a.engine))];
+  const engines = asked.filter((e) => answers.some((a) => a.engine === e && a.cited.length > 0));
+  return { answers: answers.filter((a) => engines.includes(a.engine)), engines, silent: asked.filter((e) => !engines.includes(e)) };
+}
+
+/** What a scout said before its JSON block, cut to one short line: why its search came back empty. */
+export function searchExcuse(text: string): string {
+  // The reason is at the end; the opening sentence is usually the scout restating the task.
+  const sentences = text.split('```')[0].replace(/\s+/g, ' ').trim().split(/(?<=[.!?])\s+/).filter(Boolean);
+  const reason = sentences.slice(-2).join(' ');
+  if (!reason) return 'it gave no reason.';
+  return reason.length > 200 ? `${reason.slice(0, 199).trimEnd()}…` : reason;
+}
+
 /** Citations per domain: how many answers cited it (any page), by engine, and which pages. */
 export function tally(answers: Answer[]): (BoardRow & { pages: string[]; queries: string[] })[] {
   const stats = new Map<string, BoardRow & { pages: string[]; queries: string[] }>();
