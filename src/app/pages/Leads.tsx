@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { VERTICAL_LABEL, type EngineState, type Lead } from '../../shared/engine';
+import { EDGE_CDNS, scoreParts, VERTICAL_LABEL, type EngineState, type Lead, type Verdict } from '../../shared/engine';
 import { api, ApiError } from '../api';
 import { isEmailAddress, joinEmail, mailtoHref, splitEmail, type EmailParts } from '../../shared/email';
 import { hostOf, Icon, PageSkeleton, VerdictTag } from '../ui';
@@ -51,6 +51,33 @@ export default function Leads(props: { engine: EngineState; admin: boolean; need
         </div>
       </div>
 
+      <section className="card lead-key" aria-label="How to read this list">
+        <div>
+          <span className="eyebrow">Score, out of 100</span>
+          <p className="score-sum">
+            <b>60</b> × share of AI answers that cite the site <i>+</i> <b>15</b> runs ads (ads.txt) <i>+</i> <b>15</b> uses affiliate links <i>+</i> <b>10</b> sits on an edge CDN
+          </p>
+          <p className="muted small">
+            Share of answers says how much AI already leans on the site. The other three say it earns from traffic and could put a price on AI bots at its CDN ({EDGE_CDNS.join(', ')}). Open a row to see its sum.
+          </p>
+        </div>
+        <div>
+          <span className="eyebrow">Status</span>
+          <ul className="key-list">
+            {KEY.map(([v, text]) => (
+              <li key={v}>
+                <VerdictTag lead={{ verdict: v }} />
+                <span>{text}</span>
+              </li>
+            ))}
+            <li>
+              <span className="tag t-you">approved</span>
+              <span>You checked the email and pressed Send. Skip hides a lead without deleting it.</span>
+            </li>
+          </ul>
+        </div>
+      </section>
+
       <section className="card lift clip">
         <div className="colh leadrow">
           <span />
@@ -67,6 +94,13 @@ export default function Leads(props: { engine: EngineState; admin: boolean; need
     </div>
   );
 }
+
+const KEY: [Verdict, string][] = [
+  ['verified', 'Code opened the source page and found the person named there.'],
+  ['not_found', 'A name was suggested but the source page does not show it, so the email goes to the role.'],
+  ['fetch_blocked', 'The source page refused our check. A person should look before sending.'],
+  ['no_person', 'No public page names anyone in this role. Write to the role.'],
+];
 
 function LeadRow(props: { lead: Lead; open: boolean; onToggle: () => void; admin: boolean; needPassword: () => void; onUpdate: (patch: Partial<Lead>) => void }) {
   const { lead } = props;
@@ -140,6 +174,16 @@ function LeadRow(props: { lead: Lead; open: boolean; onToggle: () => void; admin
           <aside className="facts" aria-label={`What we know about ${lead.domain}`}>
             <span className="eyebrow">The facts</span>
             <dl>
+              <div>
+                <dt>Score</dt>
+                <dd>
+                  <b className="big">
+                    {lead.score}
+                    <small> of 100</small>
+                  </b>
+                  <ScoreSum lead={lead} />
+                </dd>
+              </div>
               <div>
                 <dt>Cited</dt>
                 <dd>
@@ -239,5 +283,29 @@ function LeadRow(props: { lead: Lead; open: boolean; onToggle: () => void; admin
         </div>
       )}
     </>
+  );
+}
+
+function ScoreSum({ lead }: { lead: Lead }) {
+  const p = scoreParts(lead.answers, lead.total, lead.facts);
+  const f = lead.facts;
+  const rows: [string, number, number][] = [
+    [`Cited in ${lead.answers} of ${lead.total} answers`, p.share, 60],
+    [!f ? 'ads.txt not checked yet' : f.adsTxtLines ? `ads.txt, ${f.adsTxtLines} lines` : 'No ads.txt found', p.adsTxt, 15],
+    [!f ? 'Affiliate links not checked yet' : f.affiliate ? 'Affiliate links on its pages' : 'No affiliate links found', p.affiliate, 15],
+    [!f ? 'CDN not checked yet' : p.cdn ? `On ${f.cdn}` : `Not on an edge CDN${f.cdn !== 'unknown' ? ` (${f.cdn})` : ''}`, p.cdn, 10],
+  ];
+  return (
+    <ul className="score-parts">
+      {rows.map(([label, got, max]) => (
+        <li key={label} className={got ? '' : 'zero'}>
+          <span>{label}</span>
+          <b>
+            {got}
+            <small>/{max}</small>
+          </b>
+        </li>
+      ))}
+    </ul>
   );
 }

@@ -162,6 +162,26 @@ export interface RunEvent {
   createdAt: string;
 }
 
+/** CDNs that sit at the network edge, where an AI-bot paywall can be switched on. */
+export const EDGE_CDNS = ['Cloudflare', 'Fastly', 'CloudFront', 'Akamai'];
+
+export interface ScoreParts {
+  share: number;
+  adsTxt: number;
+  affiliate: number;
+  cdn: number;
+  total: number;
+}
+
+/** 60 points for answer share, 15 for ads.txt, 15 for affiliate links, 10 for an edge CDN. */
+export function scoreParts(answers: number, total: number, facts: SiteFacts | null): ScoreParts {
+  const share = total ? (60 * answers) / total : 0;
+  const adsTxt = facts?.adsTxtLines ? 15 : 0;
+  const affiliate = facts?.affiliate ? 15 : 0;
+  const cdn = facts && EDGE_CDNS.includes(facts.cdn) ? 10 : 0;
+  return { share: Math.round(share), adsTxt, affiliate, cdn, total: Math.round(share + adsTxt + affiliate + cdn) };
+}
+
 /** One site's checks, run by code from the Worker. */
 export interface SiteFacts {
   domain: string;

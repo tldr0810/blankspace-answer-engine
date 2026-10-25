@@ -6,7 +6,7 @@
  * contacts. Code decides what a citation is, who ranks where, and whether a name stands.
  */
 
-import { AI_AGENTS, DROPPED_VERDICTS, ENGINE_LABEL, VERTICAL_LABEL, type BoardRow, type CheckMiss, type Engine, type PageVerdict, type SiteFacts, type Vertical } from '../../shared/engine';
+import { AI_AGENTS, DROPPED_VERDICTS, ENGINE_LABEL, VERTICAL_LABEL, type BoardRow, type CheckMiss, type Engine, type PageVerdict, type SiteFacts, type Vertical, scoreParts } from '../../shared/engine';
 
 /** Cited often, but not ad- or affiliate-funded publishers. */
 export const NOT_PUBLISHERS = [
@@ -21,8 +21,6 @@ export const AFFILIATE_MARKERS = [
   'impact.com', 'prf.hn', 'rakuten', 'anrdoezrs', 'go.redirectingat.com', 'howl.me', 'shareasale',
   'pjtra.com', 'tkqlhce.com', 'dpbolvw.net', 'avantlink', 'partnerize',
 ];
-
-export const EDGE_CDNS = ['Cloudflare', 'Fastly', 'CloudFront', 'Akamai'];
 
 export interface Answer {
   engine: Engine;
@@ -157,11 +155,7 @@ export function isPublisher(domain: string, facts: SiteFacts | null): boolean {
 
 /** 60 points for answer share, 15 for ads.txt, 15 for affiliate links, 10 for an edge CDN. */
 export function score(answers: number, total: number, facts: SiteFacts | null): number {
-  let points = total ? (60 * answers) / total : 0;
-  if (facts?.adsTxtLines) points += 15;
-  if (facts?.affiliate) points += 15;
-  if (facts && EDGE_CDNS.includes(facts.cdn)) points += 10;
-  return Math.round(points);
+  return scoreParts(answers, total, facts).total;
 }
 
 export function cdnFromHeaders(get: (name: string) => string | null): string {
