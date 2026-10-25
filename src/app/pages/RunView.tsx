@@ -1,9 +1,9 @@
 /** One run, live: the steps, each engine's turn, the feed, who got cited, and the leads. */
 
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
-import { ENGINE_LABEL, ROLE_LABEL, STEPS, STEP_LABEL, VERTICAL_LABEL, type Role, type RunDetail } from '../../shared/engine';
+import { ENGINE_LABEL, ORIGIN_HELP, ROLE_LABEL, STEPS, STEP_LABEL, VERTICAL_LABEL, type Role, type RunDetail } from '../../shared/engine';
 import { api } from '../api';
-import { ago, EngineBar, EngineTag, Icon, PageSkeleton, ReviewTag, SourceMark, VerdictTag } from '../ui';
+import { ago, EngineBar, EngineTag, Icon, OriginTag, PageSkeleton, ReviewTag, SourceMark, VerdictTag } from '../ui';
 import { runTitle } from './Check';
 
 export default function RunView(props: { runId: string; admin: boolean; onChange: () => Promise<void> }) {
@@ -51,9 +51,11 @@ export default function RunView(props: { runId: string; admin: boolean; onChange
             {ago(run.startedAt)}
           </span>
           <h1>{runTitle(run)}</h1>
+          <p className="row wrap run-origin">
+            <OriginTag origin={run.origin} /> {ORIGIN_HELP[run.origin]}
+          </p>
           <p>
             {run.questions.length} {run.questions.length === 1 ? 'question' : 'questions'} asked to {run.engines.map((e) => ENGINE_LABEL[e]).join(' and ')}.
-            {run.seed && ' This is the bundled first run, made with AI agents running in the cloud on 21 October 2026.'}
           </p>
         </div>
         {run.kind === 'site' && run.status === 'done' && (
@@ -147,7 +149,7 @@ export default function RunView(props: { runId: string; admin: boolean; onChange
           <h2>{run.kind === 'site' ? 'Who to talk to' : 'Publishers worth a conversation'}</h2>
           <div className="leadgrid">
             {detail.leads.map((l) => (
-              <a key={l.id} className="leadcard" href={`#report/${run.id}/${l.domain}`}>
+              <div key={l.id} className="leadcard">
                 <div className="row" style={{ justifyContent: 'space-between' }}>
                   <b className="mono">{l.domain}</b>
                   <span className="score">{l.score}</span>
@@ -164,10 +166,18 @@ export default function RunView(props: { runId: string; admin: boolean; onChange
                   <VerdictTag lead={l} />
                   <ReviewTag review={l.review} />
                 </span>
-              </a>
+                <span className="row wrap leadcard-go">
+                  <a className="button primary sm" href={`#leads/${encodeURIComponent(l.domain)}`}>
+                    Review the email <Icon name="right" />
+                  </a>
+                  <a className="small" href={`#report/${run.id}/${l.domain}`}>
+                    Report
+                  </a>
+                </span>
+              </div>
             ))}
           </div>
-          <p className="muted small">Drafts are on the Leads page. Nothing is sent from here.</p>
+          <p className="muted small">An agent found each contact and the verification layer checked it. The next step is yours: review the email, then Send or Skip. Nothing is sent from here.</p>
         </section>
       )}
     </div>

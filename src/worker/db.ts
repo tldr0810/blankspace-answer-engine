@@ -108,6 +108,14 @@ CREATE TABLE IF NOT EXISTS runs (
   error       TEXT
 );
 
+-- Who started each run (schedule, check, owner). Its own table so old databases need no
+-- ALTER: a run with no row here is read as the schedule for a category run and a check
+-- otherwise, which is what every run before this table was.
+CREATE TABLE IF NOT EXISTS run_origins (
+  run_id TEXT PRIMARY KEY,
+  origin TEXT NOT NULL
+);
+
 -- The runner's working memory for one run, so a crash or deploy resumes where it stopped.
 CREATE TABLE IF NOT EXISTS run_state (
   run_id     TEXT PRIMARY KEY,

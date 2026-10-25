@@ -1,7 +1,7 @@
 /** Small shared pieces: icons, engine colours, verdict tags, relative times. */
 
 import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
-import { ENGINE_LABEL, PERSON_CALL_LABEL, type Engine, type Lead, type LeadReview } from '../shared/engine';
+import { ENGINE_LABEL, ORIGIN_HELP, ORIGIN_LABEL, PERSON_CALL_LABEL, type Engine, type Lead, type LeadReview, type RunOrigin } from '../shared/engine';
 
 const ICON_PATHS = {
   check: <path d="M3.5 8.5l3 3 6-7" />,
@@ -42,6 +42,17 @@ export function EngineBar(props: { byEngine: Partial<Record<Engine, number>>; en
         <i key={e} style={{ width: `${((props.byEngine[e] ?? 0) / Math.max(1, props.max)) * 100}%`, background: ENGINE_VAR[e] }} />
       ))}
     </div>
+  );
+}
+
+const ORIGIN_CLS: Record<RunOrigin, string> = { schedule: 't-ai', check: 't-you', owner: 't-you', seed: 't-mute' };
+
+/** How a run, and so a lead, came in: the 6-hour schedule or a person. */
+export function OriginTag({ origin }: { origin: RunOrigin }) {
+  return (
+    <span className={`tag ${ORIGIN_CLS[origin]}`} title={ORIGIN_HELP[origin]}>
+      {ORIGIN_LABEL[origin]}
+    </span>
   );
 }
 

@@ -22,6 +22,7 @@ import {
   type Role,
   type Run,
   type RunKind,
+  type RunOrigin,
   type Step,
   type Vertical,
 } from '../../shared/engine';
@@ -106,7 +107,7 @@ class FatalError extends Error {}
 
 /* ───────── starting a run ───────── */
 
-export function newRun(kind: RunKind, options: { vertical: Vertical; domain?: string | null; question?: string | null; engines: Engine[] }): Run {
+export function newRun(kind: RunKind, options: { vertical: Vertical; domain?: string | null; question?: string | null; engines: Engine[]; origin: RunOrigin }): Run {
   const questions =
     kind === 'question'
       ? [options.question!.trim()]
@@ -124,6 +125,7 @@ export function newRun(kind: RunKind, options: { vertical: Vertical; domain?: st
     step: 'ask',
     stepDetail: null,
     seed: false,
+    origin: options.origin,
     startedAt: now(),
     finishedAt: null,
     error: null,

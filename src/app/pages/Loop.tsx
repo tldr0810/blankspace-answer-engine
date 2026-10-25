@@ -46,7 +46,7 @@ const STEPS: Record<Key, StepDef> = {
     name: 'AI answers',
     tags: [{ cls: 't-ai', text: 'AI agents' }],
     icon: <path d="M4 5.5h16v10H9l-5 4zM8 9.5h8M8 12.5h5" />,
-    what: 'Claude, Gemini and ChatGPT agents, running in the cloud, search the web for real UK buying questions and answer like a shopper would, citing the pages they lean on.',
+    what: 'Claude, Gemini and ChatGPT agents, running in the cloud, search the web for real UK buying questions and answer like a shopper would, citing the pages they lean on. A run starts in one of two ways: every 6 hours on its own for the next category, or when someone types a site on the Check page.',
     check: 'Only pages its own search returned',
   },
   count: {
@@ -261,12 +261,23 @@ export default function Loop(props: { engine: EngineState }) {
 
   const hub = (
     <div className="card loop-hub">
-      <span className="eyebrow">On repeat</span>
-      <b className="disp">Every 6 hours</b>
-      <p>
-        A scheduled agent in the cloud refreshes the next vertical, so the board moves and new leads appear without anyone pressing a button.
-      </p>
-      <span className="tag t-mute">Next up: {next}</span>
+      <span className="eyebrow">Two ways a run starts</span>
+      <div className="hub-way">
+        <span className="row">
+          <b className="disp">Every 6 hours</b>
+          <span className="tag t-ai">Automatic</span>
+        </span>
+        <p>A scheduled agent refreshes one category on its own. Next up: {next}.</p>
+      </div>
+      <div className="hub-way">
+        <span className="row">
+          <b className="disp">Any time</b>
+          <span className="tag t-you">You</span>
+        </span>
+        <p>
+          Type a publisher’s site on the Check page and press Run. <a href="#check">Run a check</a>
+        </p>
+      </div>
     </div>
   );
 
@@ -373,7 +384,9 @@ export default function Loop(props: { engine: EngineState }) {
               })}
               <li className="vback">
                 <svg viewBox="0 0 16 16" aria-hidden><path d="M12.5 6A5 5 0 1 0 13 9.5M12.5 2.5V6H9" /></svg>
-                Back to the start every 6 hours, next up {next}
+                <span>
+                  Back to the start every 6 hours on its own, next up {next}. Or <a href="#check">start one yourself</a>.
+                </span>
               </li>
             </ol>
           ) : (

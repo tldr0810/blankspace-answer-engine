@@ -49,7 +49,7 @@ async function tryStart(env: Env): Promise<AutopilotOutcome> {
   }
 
   const vertical = VERTICALS[state.next % VERTICALS.length];
-  const run = newRun('vertical', { vertical, engines });
+  const run = newRun('vertical', { vertical, engines, origin: 'schedule' });
   await insertRun(env, run);
   await addEvent(env, run.id, `Automatic refresh, started by the scheduled agent: all ${run.questions.length} ${vertical.replace('_', ' ')} questions.`);
   await tickerFor(env, run.id).start(run.id, 0);

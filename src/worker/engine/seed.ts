@@ -59,6 +59,7 @@ export function ensureSeed(env: Env, origin: string): Promise<void> {
           step: 'done',
           stepDetail: null,
           seed: true,
+          origin: 'seed',
           startedAt: data.runAt,
           finishedAt: data.runAt,
           error: null,
