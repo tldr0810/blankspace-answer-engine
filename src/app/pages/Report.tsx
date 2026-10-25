@@ -1,7 +1,7 @@
 /** The hook: the page a publisher receives. Their AI answer share, the pages AI read, who else gets cited. */
 
 import { useEffect, useState } from 'react';
-import { AI_AGENTS, ENGINE_LABEL, VERTICAL_LABEL, type PageVerdict, type SiteReport } from '../../shared/engine';
+import { AI_AGENTS, ENGINE_LABEL, VERTICAL_LABEL, type CheckMiss, type PageVerdict, type SiteFacts, type SiteReport } from '../../shared/engine';
 import { api } from '../api';
 import { EngineBar, EngineTag, PageSkeleton, SourceMark, VerdictTag } from '../ui';
 
@@ -112,11 +112,8 @@ export default function Report(props: { runId: string; domain: string }) {
             </table>
           )}
           <h3>How the site makes money, seen from outside</h3>
-          <ul className="facts">
-            <li>ads.txt: {report.facts?.adsTxtLines == null ? 'not readable' : report.facts.adsTxtLines ? `${report.facts.adsTxtLines} seller lines` : 'none'}</li>
-            <li>Affiliate links on a cited page: {report.facts?.affiliate == null ? 'not readable' : report.facts.affiliate ? 'yes' : 'none found'}</li>
-            <li>Served through: {report.facts?.cdn ?? 'unknown'}</li>
-          </ul>
+          <p className="muted small">Three public signals of whether this site lives on ad and affiliate money, the money AI answers take away when readers stop clicking through.</p>
+          <MoneySignals facts={report.facts} />
         </section>
       </div>
 
@@ -180,4 +177,57 @@ function PageVerdictTag({ verdict }: { verdict?: PageVerdict }) {
   if (verdict === 'blocked') return <span className="tag t-watch">Site blocks checks</span>;
   if (verdict) return <span className="tag t-err">{verdict === 'dead' ? 'Gone, not counted' : 'Off topic, not counted'}</span>;
   return <span className="tag t-mute">Not checked yet</span>;
+}
+
+const MISS_TEXT: Record<CheckMiss, string> = {
+  bot_check: "Couldn't check: the site's bot protection stopped our automated request. That says nothing about the file itself, and the same wall turns away AI agents.",
+  refused: "Couldn't check: the site refuses automated requests.",
+  no_answer: "Couldn't check: the site didn't answer within 9 seconds.",
+  not_a_file: 'Probably none: the address answers with a web page instead of the file.',
+  error: "Couldn't check: the site returned a server error.",
+};
+
+function missText(miss?: CheckMiss) {
+  return miss ? MISS_TEXT[miss] : "Couldn't check on the last run. It is checked again on the next run.";
+}
+
+/** ads.txt, affiliate links and the edge network, each with what it means for an ad-funded site. */
+function MoneySignals({ facts }: { facts: SiteFacts | null }) {
+  const ads = facts?.adsTxtLines;
+  const cdn = facts?.cdn && facts.cdn !== 'unknown' ? facts.cdn : null;
+  const edge = cdn && ['Cloudflare', 'Fastly', 'CloudFront', 'Akamai'].includes(cdn);
+  const rows = [
+    {
+      label: 'Sells ad space',
+      tag: ads == null ? null : ads > 0,
+      value: ads == null ? missText(facts?.adsTxtMiss) : ads > 0 ? `Yes: its ads.txt lists ${ads} authorised ad sellers.` : 'No ads.txt file, so no programmatic ads.',
+      why: 'ads.txt is a public file where a site names every company allowed to sell its ad space. A long list means display ads pay real bills.',
+    },
+    {
+      label: 'Earns from affiliate links',
+      tag: facts?.affiliate ?? null,
+      value: facts?.affiliate == null ? missText(facts?.pageMiss) : facts.affiliate ? `Yes: affiliate links found on its ${facts.affiliateFrom ?? 'cited page'}.` : `None found on its ${facts.affiliateFrom ?? 'cited page'}.`,
+      why: 'Links like Amazon or Skimlinks pay the site a cut when a reader buys. When an AI answer replaces the visit, that click never happens.',
+    },
+    {
+      label: 'Edge network in front of the site',
+      tag: cdn ? Boolean(edge) : null,
+      value: cdn ? (edge ? `${cdn}.` : `${cdn} (no edge network detected).`) : 'Not detected.',
+      why: 'Networks like Cloudflare or Fastly see every request before the site does, so AI agent visits can be spotted and priced there.',
+    },
+  ];
+  return (
+    <dl className="signals">
+      {rows.map((r) => (
+        <div key={r.label}>
+          <dt>
+            {r.label}
+            {r.tag == null ? <span className="tag t-mute">Unknown</span> : r.tag ? <span className="tag t-eng">Yes</span> : <span className="tag t-mute">No</span>}
+          </dt>
+          <dd>{r.value}</dd>
+          <dd className="why-line">{r.why}</dd>
+        </div>
+      ))}
+    </dl>
+  );
 }

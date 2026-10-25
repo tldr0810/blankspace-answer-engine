@@ -780,6 +780,12 @@ input[type='checkbox']:checked::after { scale: 1; }
 .tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .tbl th { text-align: left; font-size: 12px; color: var(--ink3); text-transform: uppercase; letter-spacing: 0.06em; padding: 6px 4px; border-bottom: 1.5px dashed var(--hair); }
 .tbl td { padding: 7px 4px; border-bottom: 1.5px dashed var(--hair); }
+.signals { margin: 8px 0 0; display: flex; flex-direction: column; }
+.signals > div { padding: 10px 0; border-top: 1.5px dashed var(--hair); }
+.signals > div:first-child { border-top: none; }
+.signals dt { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
+.signals dd { margin: 0; color: var(--ink2); line-height: 20px; }
+.signals .why-line { margin-top: 2px; font-size: 12.5px; line-height: 18px; color: var(--ink3); }
 .facts, .links { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; color: var(--ink2); }
 .links a { overflow-wrap: anywhere; }
 .callout-panel { background: #fff6cf; }
