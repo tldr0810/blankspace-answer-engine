@@ -922,6 +922,8 @@ button:active:not(:disabled):not(.primary), .button:active:not(.primary) { trans
 .loop-panel { scroll-margin-top: 72px; }
 @media (max-width: 1180px) {
   .loop > .loop-panel { position: static; }
+}
+
 /* ── Leaderboard rows you can pick: the whole row is one button that opens the site drawer ── */
 .board.pick li, .board.big.pick li { display: block; padding: 0; }
 .board .b-row { width: 100%; display: grid; grid-template-columns: minmax(0, 200px) minmax(0, 1fr) 44px 14px; gap: 12px; align-items: center; justify-content: stretch; text-align: left; padding: 6px 8px; min-height: 0; border: 0; border-radius: inherit; background: transparent; box-shadow: none; font: inherit; font-size: 13.5px; font-weight: 400; color: inherit; }
