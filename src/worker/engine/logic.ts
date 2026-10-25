@@ -6,7 +6,7 @@
  * contacts. Code decides what a citation is, who ranks where, and whether a name stands.
  */
 
-import { AI_AGENTS, DROPPED_VERDICTS, ENGINE_LABEL, VERTICAL_LABEL, type BoardRow, type CheckMiss, type Engine, type PageVerdict, type SiteFacts, type Vertical, scoreParts, REVIEW_CHECKS, type LeadReview, type ReviewCheck, type ReviewCheckKey, type ReviewDecision } from '../../shared/engine';
+import { AI_AGENTS, DROPPED_VERDICTS, ENGINE_LABEL, VERTICAL_LABEL, type BoardRow, type CheckMiss, type Engine, type PageVerdict, type SiteFacts, type Vertical, scoreParts, REVIEW_CHECKS, type LeadReview, type ReviewCheck, type ReviewCheckKey, type ReviewDecision, type SiteRule, EDGE_CDNS, finalDecision, type Lead, type Learning, type SignalStat } from '../../shared/engine';
 
 /** Cited often, but not ad- or affiliate-funded publishers. */
 export const NOT_PUBLISHERS = [
@@ -146,7 +146,9 @@ export function onePerSite<T extends { domain: string; verdict: string; score: n
   return [...best.values()].sort((x, y) => y.score - x.score);
 }
 
-export function isPublisher(domain: string, facts: SiteFacts | null): boolean {
+export function isPublisher(domain: string, facts: SiteFacts | null, rule?: SiteRule['rule']): boolean {
+  // What a person or the verifier decided before wins over the guesses below.
+  if (rule) return rule === 'publisher';
   if (listedNonPublisher(domain)) return false;
   if (!facts) return true;
   // Unreachable sites stay in for a person to check; reachable ones need a sign they sell ads or affiliate.
@@ -433,4 +435,66 @@ export function draftEmail(input: DraftInput): string {
     'Not the right person? Reply and I won’t write again.',
   ];
   return lines.filter((line, i, all) => !(line === '' && all[i - 1] === '')).join('\n');
+}
+
+/* ───────── learning from decisions ───────── */
+
+/** Decisions needed before a signal's approval rate is worth reading. */
+export const DECISIONS_NEEDED = 10;
+
+/**
+ * What a decided lead says: approved or called a good fit is a yes; skipped or called not a fit
+ * is a no. Leads nobody decided on teach nothing.
+ */
+export function leadOutcome(lead: Pick<Lead, 'status' | 'review'>): boolean | null {
+  const call = lead.review?.person?.call;
+  if (call) return call === 'fit';
+  if (lead.status === 'approved') return true;
+  if (lead.status === 'skipped') return false;
+  return null;
+}
+
+/**
+ * How the score's signals line up with what people decided. Shown next to the weights so a
+ * person can change them; the weights are never changed by this.
+ */
+export function signalStats(leads: Pick<Lead, 'status' | 'review' | 'answers' | 'total' | 'facts'>[]): { decided: number; signals: SignalStat[] } {
+  const decided = leads.flatMap((l) => {
+    const yes = leadOutcome(l);
+    return yes === null ? [] : [{ l, yes }];
+  });
+  const has: [SignalStat['key'], string, number, (l: (typeof decided)[number]['l']) => boolean][] = [
+    ['share', 'Cited in at least 1 in 4 answers', 60, (l) => l.total > 0 && l.answers / l.total >= 0.25],
+    ['adsTxt', 'Runs ads (ads.txt)', 15, (l) => Boolean(l.facts?.adsTxtLines)],
+    ['affiliate', 'Uses affiliate links', 15, (l) => Boolean(l.facts?.affiliate)],
+    ['cdn', 'On an edge CDN', 10, (l) => Boolean(l.facts && EDGE_CDNS.includes(l.facts.cdn))],
+  ];
+  const signals = has.map(([key, label, points, test]) => {
+    const withIt = decided.filter((d) => test(d.l));
+    const without = decided.filter((d) => !test(d.l));
+    return {
+      key,
+      label,
+      points,
+      withYes: withIt.filter((d) => d.yes).length,
+      withN: withIt.length,
+      withoutYes: without.filter((d) => d.yes).length,
+      withoutN: without.length,
+    };
+  });
+  return { decided: decided.length, signals };
+}
+
+/** How often the verifier's decision held up, counting only leads a person also called. */
+export function verifierRecord(reviews: LeadReview[]): Learning['verifier'] {
+  const agent = reviews.filter((r) => r.checks.length > 0);
+  const called = agent.filter((r) => r.person && r.decision !== 'unsure');
+  return {
+    reviewed: agent.length,
+    pass: agent.filter((r) => r.decision === 'pass').length,
+    reject: agent.filter((r) => r.decision === 'reject').length,
+    unsure: agent.filter((r) => r.decision === 'unsure').length,
+    called: called.length,
+    overturned: called.filter((r) => finalDecision(r) !== r.decision).length,
+  };
 }

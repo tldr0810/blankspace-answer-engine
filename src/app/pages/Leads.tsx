@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { EDGE_CDNS, REVIEW_CHECK_LABEL, scoreParts, VERTICAL_LABEL, type EngineState, type Lead, type LeadReview, type Verdict } from '../../shared/engine';
+import { EDGE_CDNS, PERSON_CALL_LABEL, PERSON_CALLS, REVIEW_CHECK_LABEL, scoreParts, VERTICAL_LABEL, type EngineState, type Lead, type LeadReview, type PersonCall, type Verdict } from '../../shared/engine';
 import { api, ApiError } from '../api';
 import { isEmailAddress, joinEmail, mailtoHref, splitEmail, type EmailParts } from '../../shared/email';
 import { hostOf, Icon, PageSkeleton, ReviewTag, VerdictTag } from '../ui';
@@ -95,6 +95,10 @@ export default function Leads(props: { engine: EngineState; admin: boolean; need
                 <span className="tag t-mute">skipped</span>
                 <span>Set aside. Restore brings it back.</span>
               </li>
+              <li>
+                <span className="tag t-you">Good fit · you</span>
+                <span>Your call on a lead. It overrides the verifier and is remembered for the next runs.</span>
+              </li>
             </ul>
           </div>
         </div>
@@ -162,6 +166,21 @@ function LeadRow(props: { lead: Lead; open: boolean; onToggle: () => void; admin
     }
   };
 
+  const [calling, setCalling] = useState(false);
+  const makeCall = async (call: PersonCall) => {
+    if (!props.admin) return props.needPassword();
+    setCalling(true);
+    setError('');
+    try {
+      const r = await api<{ lead: Lead }>(`/api/engine/leads/${encodeURIComponent(lead.id)}/call`, { method: 'POST', body: JSON.stringify({ call }) });
+      props.onUpdate({ review: r.lead.review, verdict: r.lead.verdict, verifyNote: r.lead.verifyNote });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : String(err));
+    } finally {
+      setCalling(false);
+    }
+  };
+
   const send = async () => {
     if (!(await save({ email: text, status: 'approved' }))) return;
     window.location.href = mailtoHref(draft);
@@ -225,13 +244,36 @@ function LeadRow(props: { lead: Lead; open: boolean; onToggle: () => void; admin
                   </span>
                 </dd>
               </div>
-              {lead.review && (
+              {lead.review && lead.review.checks.length > 0 && (
                 <div>
                   <dt>Second review</dt>
                   <dd>
-                    <ReviewTag review={lead.review} />
+                    <ReviewTag review={{ decision: lead.review.decision }} />
                     <ReviewChecks review={lead.review} />
                     {lead.review.change && <span className="sub">{lead.review.change}</span>}
+                  </dd>
+                </div>
+              )}
+              {(props.admin || lead.review?.person) && (
+                <div>
+                  <dt>Your call</dt>
+                  <dd>
+                    {props.admin ? (
+                      <span className="row wrap call-row">
+                        {PERSON_CALLS.map((c) => (
+                          <button key={c} className={`sm ${lead.review?.person?.call === c ? 'primary' : ''}`} disabled={calling} aria-pressed={lead.review?.person?.call === c} onClick={() => void makeCall(c)}>
+                            {PERSON_CALL_LABEL[c]}
+                          </button>
+                        ))}
+                      </span>
+                    ) : (
+                      <ReviewTag review={lead.review} />
+                    )}
+                    <span className="sub">
+                      {lead.review?.person
+                        ? `Called ${new Date(lead.review.person.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}. The next runs remember it.`
+                        : 'Overrides the verifier. Good fit and Not a publisher are remembered for this site on every later run.'}
+                    </span>
                   </dd>
                 </div>
               )}
