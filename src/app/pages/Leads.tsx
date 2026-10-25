@@ -7,6 +7,7 @@
 import { useEffect, useState } from 'react';
 import { EDGE_CDNS, PERSON_CALL_LABEL, PERSON_CALLS, REVIEW_CHECK_LABEL, scoreParts, VERTICAL_LABEL, type EngineState, type Lead, type LeadReview, type PersonCall, type Verdict } from '../../shared/engine';
 import { api, ApiError } from '../api';
+import { markTour } from '../components/Tour';
 import { isEmailAddress, joinEmail, mailtoHref, splitEmail, type EmailParts } from '../../shared/email';
 import { hostOf, Icon, PageSkeleton, ReviewTag, VerdictTag } from '../ui';
 
@@ -29,6 +30,8 @@ export default function Leads(props: { engine: EngineState; admin: boolean; need
 
   if (!leads) return <PageSkeleton kind="leads" label="Loading leads" />;
   const shown = leads.filter((l) => (filter === 'verified' ? l.verdict === 'verified' : filter === 'approved' ? l.status === 'approved' : true));
+  // The tour points at a lead with the most evidence to show: a second review, then a checked contact.
+  const tourLead = (shown.find((l) => l.review?.checks.length) ?? shown.find((l) => l.verdict === 'verified') ?? shown[0])?.id;
   const update = (id: string, patch: Partial<Lead>) => setLeads((all) => all!.map((l) => (l.id === id ? { ...l, ...patch } : l)));
 
   return (
@@ -114,7 +117,15 @@ export default function Leads(props: { engine: EngineState; admin: boolean; need
         </div>
         {shown.length === 0 && <p className="empty">Nothing here yet.</p>}
         {shown.map((l) => (
-          <LeadRow key={l.id} lead={l} open={open === l.id} onToggle={() => setOpen(open === l.id ? null : l.id)} admin={props.admin} needPassword={props.needPassword} onUpdate={(p) => update(l.id, p)} />
+          <LeadRow
+            key={l.id}
+            lead={l}
+            tour={l.id === tourLead}
+            open={open === l.id}
+            onToggle={() => {
+              if (open !== l.id) markTour('review');
+              setOpen(open === l.id ? null : l.id);
+            }} admin={props.admin} needPassword={props.needPassword} onUpdate={(p) => update(l.id, p)} />
         ))}
       </section>
     </div>
@@ -134,7 +145,7 @@ const REVIEW_KEY: [LeadReview['decision'], string][] = [
   ['unsure', 'The second agent could not tell, or its quote was not on the page. A person decides.'],
 ];
 
-function LeadRow(props: { lead: Lead; open: boolean; onToggle: () => void; admin: boolean; needPassword: () => void; onUpdate: (patch: Partial<Lead>) => void }) {
+function LeadRow(props: { lead: Lead; tour: boolean; open: boolean; onToggle: () => void; admin: boolean; needPassword: () => void; onUpdate: (patch: Partial<Lead>) => void }) {
   const { lead } = props;
   const [draft, setDraft] = useState<EmailParts>(() => splitEmail(lead.email ?? ''));
   const [saving, setSaving] = useState(false);
@@ -198,7 +209,7 @@ function LeadRow(props: { lead: Lead; open: boolean; onToggle: () => void; admin
 
   return (
     <>
-      <div className={`dr leadrow ${props.open ? 'cur' : ''} ${lead.status === 'skipped' ? 'off' : ''}`} onClick={props.onToggle} role="button" tabIndex={0} onKeyDown={(e) => (e.key === 'Enter' ? props.onToggle() : null)}>
+      <div className={`dr leadrow ${props.open ? 'cur' : ''} ${lead.status === 'skipped' ? 'off' : ''}`} data-tour={props.tour ? 'review' : undefined} onClick={props.onToggle} role="button" tabIndex={0} onKeyDown={(e) => (e.key === 'Enter' ? props.onToggle() : null)}>
         <span className={`chev ${props.open ? 'open' : ''}`}>
           <Icon name="chevron" />
         </span>

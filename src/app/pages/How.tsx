@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Learning } from '../../shared/engine';
 import { api } from '../api';
+import { markTour } from '../components/Tour';
 
 /** How the engine works: who does what, and the guardrails. */
 
@@ -71,6 +72,15 @@ const pct = (yes: number, n: number) => (n ? `${Math.round((100 * yes) / n)}%` :
 /** What the flow has learned: sites it remembers, how each agent is doing, and the score against people's decisions. */
 function LearningPanel() {
   const [data, setData] = useState<Learning | null>(null);
+  const ref = useRef<HTMLElement>(null);
+  // Seeing this panel is the tour's last step.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver((entries) => entries.some((e) => e.isIntersecting) && markTour('learn'), { threshold: 0.3 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [data]);
   useEffect(() => {
     let cancelled = false;
     api<Learning>('/api/engine/learning')
@@ -84,7 +94,7 @@ function LearningPanel() {
   const v = data.verifier;
   const enough = data.decided >= data.needed;
   return (
-    <section className="panel learn">
+    <section className="panel learn" ref={ref} data-tour="learn">
       <h2>How the flow gets better</h2>
       <p className="muted">
         Every check and every call a person makes is kept and used on the next run. Agents never change the rules on their own: a site is only remembered when the

@@ -24,6 +24,7 @@ import Loop from './pages/Loop';
 import Report from './pages/Report';
 import RunView from './pages/RunView';
 import Settings from './pages/Settings';
+import Tour from './components/Tour';
 import { Icon, PageSkeleton } from './ui';
 
 type Page = 'loop' | 'check' | 'run' | 'board' | 'report' | 'leads' | 'how' | 'settings';
@@ -65,6 +66,23 @@ const ICON: Record<Page, React.ReactNode> = {
   settings: <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.2" /><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" /></svg>,
 };
 
+const go = (hash: string) => {
+  location.hash = `#${hash}`;
+};
+
+/** Wide enough that the sidebar is always on screen, so the tour can sit in it. */
+function useWide() {
+  const query = '(min-width: 861px)';
+  const [wide, setWide] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const on = () => setWide(mq.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  return wide;
+}
+
 export default function App() {
   const [app, setApp] = useState<AppState | null>(null);
   const [engine, setEngine] = useState<EngineState | null>(null);
@@ -72,6 +90,7 @@ export default function App() {
   const [route, setRoute] = useState<Route>(parseHash);
   const [gateOpen, setGateOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const docked = useWide();
 
   const refresh = useCallback(async () => {
     try {
@@ -157,6 +176,7 @@ export default function App() {
             </a>
           ))}
         </nav>
+        {docked && <Tour docked go={go} />}
         <div className="sidefoot">
           {engine && (
             <div className="small">
@@ -197,6 +217,8 @@ export default function App() {
           </div>
         </div>
       </main>
+
+      {!docked && <Tour docked={false} go={go} />}
 
       {gateOpen && needsPassword && (
         <PasswordGate
