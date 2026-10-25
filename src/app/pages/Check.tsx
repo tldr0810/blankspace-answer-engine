@@ -4,24 +4,53 @@
  */
 
 import { useState } from 'react';
-import { ENGINE_LABEL, VERTICALS, VERTICAL_LABEL, type EngineState, type Run, type Vertical } from '../../shared/engine';
+import { ENGINE_LABEL, VERTICALS, VERTICAL_LABEL, type EngineState, type Run, type Vertical, type VerticalBoard } from '../../shared/engine';
 import { api, ApiError } from '../api';
 import { ago, EngineTag, Icon, Picker } from '../ui';
 
 type Mode = 'site' | 'question';
 
-const EXAMPLES: Record<Mode, { text: string; vertical: Vertical }[]> = {
-  site: [
-    { text: 'whathifi.com', vertical: 'consumer_tech' },
-    { text: 'runnersworld.com', vertical: 'running' },
-    { text: 'headforpoints.com', vertical: 'travel' },
-  ],
-  question: [
-    { text: 'best electric car for a family of five', vertical: 'automotive' },
-    { text: 'best headphones for working in a noisy office', vertical: 'consumer_tech' },
-    { text: 'best trail shoes for wide feet', vertical: 'running' },
-  ],
-};
+type Example = { text: string; vertical: Vertical };
+
+/** Used while the boards load, or for a vertical with no checked publisher yet: each vertical's top publisher on 25 Oct 2026. */
+const FALLBACK_SITES: Example[] = [
+  { text: 'carwow.co.uk', vertical: 'automotive' },
+  { text: 'techradar.com', vertical: 'consumer_tech' },
+  { text: 'runrepeat.com', vertical: 'running' },
+  { text: 'uk.pcmag.com', vertical: 'b2b_software' },
+  { text: 'headforpoints.com', vertical: 'travel' },
+];
+
+/**
+ * One example site per vertical: the most-cited publisher on its latest board, skipping sites
+ * that blocked every page check, so a click always lands on a site with real data behind it.
+ * A site that tops two boards goes to the one where it has the larger share, and the other
+ * vertical takes its next publisher.
+ */
+export function exampleSites(boards: VerticalBoard[]): Example[] {
+  const candidates = new Map(
+    boards.map((b) => [b.vertical, b.rows.filter((r) => r.publisher === true && r.verified !== false).map((r) => ({ domain: r.domain, share: b.total ? r.answers / b.total : 0 }))]),
+  );
+  const order = [...candidates.keys()].sort((a, b) => (candidates.get(b)![0]?.share ?? 0) - (candidates.get(a)![0]?.share ?? 0));
+  const used = new Set<string>();
+  const picked = new Map<Vertical, string>();
+  for (const vertical of order) {
+    const pick = candidates.get(vertical)!.find((c) => !used.has(c.domain));
+    if (!pick) continue;
+    used.add(pick.domain);
+    picked.set(vertical, pick.domain);
+  }
+  return FALLBACK_SITES.map((fallback) => {
+    const domain = picked.get(fallback.vertical);
+    return domain ? { text: domain, vertical: fallback.vertical } : fallback;
+  });
+}
+
+const QUESTION_EXAMPLES: Example[] = [
+  { text: 'best electric car for a family of five', vertical: 'automotive' },
+  { text: 'best headphones for working in a noisy office', vertical: 'consumer_tech' },
+  { text: 'best trail shoes for wide feet', vertical: 'running' },
+];
 
 export function runTitle(run: Run): string {
   if (run.kind === 'site') return run.domain ?? 'Site check';
@@ -56,6 +85,7 @@ export default function Check(props: { engine: EngineState; admin: boolean; onSt
     }
   };
 
+  const examples = mode === 'site' ? exampleSites(engine.boards) : QUESTION_EXAMPLES;
   const recent = engine.runs.filter((r) => !r.seed).slice(0, 8);
 
   return (
@@ -86,7 +116,7 @@ export default function Check(props: { engine: EngineState; admin: boolean; onSt
             type="text"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder={mode === 'site' ? 'whathifi.com' : 'best noise cancelling headphones under £200'}
+            placeholder={mode === 'site' ? examples[0].text : 'best noise cancelling headphones under £200'}
             aria-label={mode === 'site' ? 'Site' : 'Buying question'}
             autoComplete="off"
           />
@@ -108,11 +138,12 @@ export default function Check(props: { engine: EngineState; admin: boolean; onSt
               : 'Asks every engine this one question, then checks the sites they cite.'}
           </span>
           <span className="row">
-            {EXAMPLES[mode].map((ex) => (
+            {examples.map((ex) => (
               <button
-                key={ex.text}
+                key={`${ex.vertical}:${ex.text}`}
                 type="button"
                 className="chip-btn"
+                title={mode === 'site' ? `Most-cited ${VERTICAL_LABEL[ex.vertical].toLowerCase()} publisher` : VERTICAL_LABEL[ex.vertical]}
                 onClick={() => {
                   setText(ex.text);
                   setVertical(ex.vertical);
