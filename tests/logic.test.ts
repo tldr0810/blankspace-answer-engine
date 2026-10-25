@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   acceptAnswers,
   judgePage,
+  missReason,
   pageCovers,
   queryKeywords,
   siteVerified,
@@ -151,5 +152,23 @@ describe('cited-page checks', () => {
     expect(siteVerified(['https://b.com/y'], new Map([['https://b.com/y', 'ok' as const]]))).toBe(true);
     expect(siteVerified(['https://b.com/y'], new Map([['https://b.com/y', 'blocked' as const]]))).toBe(false);
     expect(siteVerified(['https://b.com/y'], new Map())).toBe(null);
+  });
+});
+
+describe('missReason', () => {
+  const res = (status: number, text = '', headers: Record<string, string> = {}) => ({ status, text, header: (n: string) => headers[n] ?? null });
+  it('names bot protection instead of a bare failure', () => {
+    expect(missReason(res(403, '', { 'cf-mitigated': 'challenge' }))).toBe('bot_check');
+    expect(missReason(res(403, '<html>', { 'cf-ray': 'abc' }))).toBe('bot_check');
+    expect(missReason(res(503, '<title>Just a moment...</title>'))).toBe('bot_check');
+  });
+  it('tells refusals, timeouts and web pages apart', () => {
+    expect(missReason(null)).toBe('no_answer');
+    expect(missReason(res(429))).toBe('refused');
+    expect(missReason(res(500))).toBe('error');
+    expect(missReason(res(200, '<html><body>Home</body></html>'))).toBe('not_a_file');
+  });
+  it('does not flag a normal page that loads a Cloudflare script', () => {
+    expect(missReason(res(200, '<script src="/cdn-cgi/challenge-platform/scripts/jsd/main.js"></script>', { 'cf-ray': 'abc' }))).toBe('not_a_file');
   });
 });

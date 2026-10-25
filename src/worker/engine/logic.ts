@@ -6,7 +6,7 @@
  * contacts. Code decides what a citation is, who ranks where, and whether a name stands.
  */
 
-import { AI_AGENTS, DROPPED_VERDICTS, ENGINE_LABEL, VERTICAL_LABEL, type BoardRow, type Engine, type PageVerdict, type SiteFacts, type Vertical } from '../../shared/engine';
+import { AI_AGENTS, DROPPED_VERDICTS, ENGINE_LABEL, VERTICAL_LABEL, type BoardRow, type CheckMiss, type Engine, type PageVerdict, type SiteFacts, type Vertical } from '../../shared/engine';
 
 /** Cited often, but not ad- or affiliate-funded publishers. */
 export const NOT_PUBLISHERS = [
@@ -143,6 +143,22 @@ export function cdnFromHeaders(get: (name: string) => string | null): string {
   if (get('x-amz-cf-id')) return 'CloudFront';
   if (get('x-akamai-request-id') || (get('server') ?? '').toLowerCase().includes('akamai')) return 'Akamai';
   return get('server') || 'unknown';
+}
+
+/**
+ * Why a fetch gave us nothing usable. A Cloudflare challenge or a "just a moment" page is bot
+ * protection, which says nothing about whether the file exists.
+ */
+export function missReason(fetched: { status: number; text: string; header: (name: string) => string | null } | null): CheckMiss {
+  if (!fetched) return 'no_answer';
+  const head = fetched.text.slice(0, 3000).toLowerCase();
+  const behindCloudflare = Boolean(fetched.header('cf-ray'));
+  if (fetched.header('cf-mitigated') === 'challenge') return 'bot_check';
+  if (/<title>\s*(just a moment|attention required|access denied|verifying you are human)|_cf_chl_opt/.test(head)) return 'bot_check';
+  if (fetched.status === 403 && behindCloudflare) return 'bot_check';
+  if (fetched.status === 401 || fetched.status === 403 || fetched.status === 429) return 'refused';
+  if (fetched.status >= 400) return 'error';
+  return 'not_a_file';
 }
 
 export function countAdsTxt(text: string): number {

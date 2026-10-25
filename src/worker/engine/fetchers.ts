@@ -1,12 +1,12 @@
 /**
  * The checks code runs itself, from the Worker: ads.txt, a cited page (affiliate links and
  * CDN headers), robots.txt, and the contact's source page. Each fetch has its own timeout and
- * a failure only blanks that one fact; it never fails the run.
+ * a failure only blanks that one fact and records why; it never fails the run. A blocked ads.txt
+ * is retried on the www/apex twin, a blocked cited page falls back to the home page.
  */
 
-import type { SiteFacts } from '../../shared/engine';
-import { cdnFromHeaders, countAdsTxt, hasAffiliate, judgePage, nameOnPage, pageText, robotsReport } from './logic';
-import type { PageVerdict } from '../../shared/engine';
+import { cdnFromHeaders, countAdsTxt, hasAffiliate, judgePage, missReason, nameOnPage, pageText, robotsReport } from './logic';
+import type { CheckMiss, PageVerdict, SiteFacts } from '../../shared/engine';
 import { now } from '../db';
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36 BlankspaceAnswerShare/1.0';
@@ -31,23 +31,53 @@ async function get(url: string): Promise<{ status: number; headers: Headers; tex
   }
 }
 
+type Fetched = NonNullable<Awaited<ReturnType<typeof get>>>;
+
+const readable = (f: Fetched | null) => (f ? { status: f.status, text: f.text, header: (n: string) => f.headers.get(n) } : null);
+
+/** The same host with "www." added or taken off: many sites only answer on one of the two. */
+function otherHost(domain: string): string {
+  return domain.startsWith('www.') ? domain.slice(4) : `www.${domain}`;
+}
+
+async function readAdsTxt(domain: string): Promise<{ lines: number | null; miss?: CheckMiss }> {
+  let miss: CheckMiss = 'no_answer';
+  for (const host of [domain, otherHost(domain)]) {
+    const ads = await get(`https://${host}/ads.txt`);
+    if (ads?.status === 404) return { lines: 0 };
+    const type = ads?.headers.get('content-type') ?? '';
+    if (ads && ads.status === 200 && type.includes('text/plain')) return { lines: countAdsTxt(ads.text) };
+    miss = missReason(readable(ads));
+  }
+  return { lines: null, miss };
+}
+
 export async function checkSite(domain: string, samplePage: string | null): Promise<SiteFacts> {
   const facts: SiteFacts = { domain, reachable: false, cdn: 'unknown', affiliate: null, adsTxtLines: null, robots: {}, checkedAt: now() };
   const [page, ads, robots] = await Promise.all([
     get(samplePage ?? `https://${domain}/`),
-    get(`https://${domain}/ads.txt`),
+    readAdsTxt(domain),
     get(`https://${domain}/robots.txt`),
   ]);
-  if (page) {
-    facts.cdn = cdnFromHeaders((name) => page.headers.get(name));
-    facts.reachable = page.status < 400;
-    if (facts.reachable) facts.affiliate = hasAffiliate(page.text);
+  if (page) facts.cdn = cdnFromHeaders((name) => page.headers.get(name));
+  facts.reachable = Boolean(page && page.status < 400);
+  if (page && facts.reachable && missReason(readable(page)) !== 'bot_check') {
+    facts.affiliate = hasAffiliate(page.text);
+    facts.affiliateFrom = 'cited page';
+  } else {
+    // The cited page was blocked: the home page often is not, and carries the same affiliate scripts.
+    const home = samplePage ? await get(`https://${domain}/`) : null;
+    if (home && facts.cdn === 'unknown') facts.cdn = cdnFromHeaders((name) => home.headers.get(name));
+    if (home && home.status < 400 && missReason(readable(home)) !== 'bot_check') {
+      facts.reachable = true;
+      facts.affiliate = hasAffiliate(home.text);
+      facts.affiliateFrom = 'home page';
+    } else {
+      facts.pageMiss = missReason(readable(page));
+    }
   }
-  if (ads) {
-    const type = ads.headers.get('content-type') ?? '';
-    if (ads.status === 200 && type.includes('text/plain')) facts.adsTxtLines = countAdsTxt(ads.text);
-    else if (ads.status === 404) facts.adsTxtLines = 0;
-  }
+  facts.adsTxtLines = ads.lines;
+  if (ads.miss) facts.adsTxtMiss = ads.miss;
   if (robots && robots.status === 200 && !/<html/i.test(robots.text.slice(0, 500))) {
     facts.robots = robotsReport(robots.text);
   }

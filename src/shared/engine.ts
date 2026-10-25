@@ -172,7 +172,16 @@ export interface SiteFacts {
   /** agent name → allowed at "/" */
   robots: Record<string, boolean>;
   checkedAt: string;
+  /** Why adsTxtLines is null. Missing on facts saved before reasons were kept. */
+  adsTxtMiss?: CheckMiss;
+  /** Why affiliate is null. */
+  pageMiss?: CheckMiss;
+  /** Which page the affiliate check read: a cited page, or the home page when that was blocked. */
+  affiliateFrom?: 'cited page' | 'home page';
 }
+
+/** Why a check came back empty, so a report can say so instead of a bare "not readable". */
+export type CheckMiss = 'bot_check' | 'refused' | 'no_answer' | 'not_a_file' | 'error';
 
 /** A site in a leaderboard: how many answers per engine cited it. */
 export interface BoardRow {
