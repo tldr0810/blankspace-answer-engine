@@ -51,7 +51,7 @@ async function tryStart(env: Env): Promise<AutopilotOutcome> {
   const vertical = VERTICALS[state.next % VERTICALS.length];
   const run = newRun('vertical', { vertical, engines });
   await insertRun(env, run);
-  await addEvent(env, run.id, `Automatic refresh, started by the Manyfold automation: all ${run.questions.length} ${vertical.replace('_', ' ')} questions.`);
+  await addEvent(env, run.id, `Automatic refresh, started by the scheduled agent: all ${run.questions.length} ${vertical.replace('_', ' ')} questions.`);
   await tickerFor(env, run.id).start(run.id, 0);
   await saveAutopilot(env, { ...state, next: (state.next + 1) % VERTICALS.length, lastAt: run.startedAt, lastRunId: run.id });
   return { started: true, run };

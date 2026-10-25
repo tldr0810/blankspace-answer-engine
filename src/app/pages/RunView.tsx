@@ -53,7 +53,7 @@ export default function RunView(props: { runId: string; admin: boolean; onChange
           <h1>{runTitle(run)}</h1>
           <p>
             {run.questions.length} {run.questions.length === 1 ? 'question' : 'questions'} asked to {run.engines.map((e) => ENGINE_LABEL[e]).join(' and ')}.
-            {run.seed && ' This is the bundled first run, made with agents on Manyfold on 21 October 2026.'}
+            {run.seed && ' This is the bundled first run, made with AI agents running in the cloud on 21 October 2026.'}
           </p>
         </div>
         {run.kind === 'site' && run.status === 'done' && (
