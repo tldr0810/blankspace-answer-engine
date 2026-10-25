@@ -10,6 +10,7 @@ import {
   type BoardRow,
   type Engine,
   type Lead,
+  type LeadReview,
   type Role,
   type Run,
   type RunEvent,
@@ -345,11 +346,13 @@ export async function bestLeads(env: Env): Promise<Lead[]> {
   const picked = onePerSite((results ?? []).map((r) => ({ ...r, runAt: r.run_at })));
   // Site facts are re-checked weekly, so score against the latest ones: the page shows how the number adds up.
   const leads = (await toLeads(env, picked)).map((l) => (l.facts ? { ...l, score: score(l.answers, l.total, l.facts) } : l));
-  return leads.sort((a, b) => b.score - a.score);
+  // A lead the verifier rejected goes to the bottom, where a person can still look at it.
+  const rejected = (l: Lead) => (l.review?.decision === 'reject' ? 1 : 0);
+  return leads.sort((a, b) => rejected(a) - rejected(b) || b.score - a.score);
 }
 
 async function toLeads(env: Env, rows: LeadRow[]): Promise<Lead[]> {
-  const facts = await siteFacts(env, rows.map((r) => r.domain));
+  const [facts, reviews] = await Promise.all([siteFacts(env, rows.map((r) => r.domain)), leadReviews(env, rows.map((r) => r.id))]);
   return rows.map((r) => ({
     id: r.id,
     runId: r.run_id,
@@ -374,10 +377,36 @@ async function toLeads(env: Env, rows: LeadRow[]): Promise<Lead[]> {
     verifyNote: r.verify_note,
     email: r.email,
     status: r.status,
+    review: reviews.get(r.id) ?? null,
   }));
 }
 
-export async function insertLead(env: Env, lead: Omit<Lead, 'facts'>): Promise<void> {
+async function leadReviews(env: Env, ids: string[]): Promise<Map<string, LeadReview>> {
+  const out = new Map<string, LeadReview>();
+  for (let i = 0; i < ids.length; i += 50) {
+    const chunk = ids.slice(i, i + 50);
+    if (!chunk.length) continue;
+    const { results } = await env.DB.prepare(`SELECT lead_id, data FROM lead_reviews WHERE lead_id IN (${chunk.map(() => '?').join(', ')})`)
+      .bind(...chunk)
+      .all<{ lead_id: string; data: string }>();
+    for (const row of results ?? []) {
+      const review = json<LeadReview | null>(row.data, null);
+      if (review) out.set(row.lead_id, review);
+    }
+  }
+  return out;
+}
+
+export async function saveReview(env: Env, leadId: string, review: LeadReview): Promise<void> {
+  await env.DB.prepare(
+    `INSERT INTO lead_reviews (lead_id, data, reviewed_at) VALUES (?, ?, ?)
+     ON CONFLICT (lead_id) DO UPDATE SET data = excluded.data, reviewed_at = excluded.reviewed_at`,
+  )
+    .bind(leadId, JSON.stringify(review), review.reviewedAt)
+    .run();
+}
+
+export async function insertLead(env: Env, lead: Omit<Lead, 'facts' | 'review'>): Promise<void> {
   await env.DB.prepare(
     `INSERT OR REPLACE INTO leads (id, run_id, vertical, domain, score, answers, total, citations, pages, queries, owner, company_type,
        monetisation, ai_deal, contact_role, contact_name, contact_source_url, why, verdict, verify_note, email, status, updated_at)

@@ -176,6 +176,13 @@ CREATE TABLE IF NOT EXISTS leads (
   updated_at         TEXT NOT NULL
 );
 
+-- The verifier agent's review of a lead, after code checked its quotes (LeadReview as JSON).
+CREATE TABLE IF NOT EXISTS lead_reviews (
+  lead_id     TEXT PRIMARY KEY,
+  data        TEXT NOT NULL,
+  reviewed_at TEXT NOT NULL
+);
+
 -- What happened, in words, for the run's live feed.
 CREATE TABLE IF NOT EXISTS events (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -1,7 +1,7 @@
 /** Small shared pieces: icons, engine colours, verdict tags, relative times. */
 
 import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
-import { ENGINE_LABEL, type Engine, type Lead } from '../shared/engine';
+import { ENGINE_LABEL, type Engine, type Lead, type LeadReview } from '../shared/engine';
 
 const ICON_PATHS = {
   check: <path d="M3.5 8.5l3 3 6-7" />,
@@ -57,6 +57,19 @@ export function VerdictTag({ lead }: { lead: Pick<Lead, 'verdict'> }) {
       return <span className="tag t-mute">Role only</span>;
     default:
       return <span className="tag t-mute">Checking…</span>;
+  }
+}
+
+/** The verifier agent's decision on a lead, once code has checked its quotes. */
+export function ReviewTag({ review }: { review: Pick<LeadReview, 'decision'> | null }) {
+  if (!review) return null;
+  switch (review.decision) {
+    case 'pass':
+      return <span className="tag t-ai"><Icon name="check" size={12} /> Reviewed</span>;
+    case 'reject':
+      return <span className="tag t-ret">Held back</span>;
+    default:
+      return <span className="tag t-watch">Needs a person</span>;
   }
 }
 

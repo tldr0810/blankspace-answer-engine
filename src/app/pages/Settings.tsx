@@ -58,7 +58,7 @@ export default function Settings(props: { app: AppState; engine: EngineState; on
         <div className="lh">
           <div>
             <h2>Roles</h2>
-            <p>At least one scout makes live runs possible. The profiler is optional; without it drafts go to a role.</p>
+            <p>At least one scout makes live runs possible. The profiler is optional; without it drafts go to a role. The verifier is optional too, and must be a different agent from the profiler.</p>
           </div>
         </div>
         <div className="roles">

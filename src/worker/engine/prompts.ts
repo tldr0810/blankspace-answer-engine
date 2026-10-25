@@ -84,3 +84,86 @@ export const profileSchema = z.object({
     }),
   ),
 });
+
+export interface ReviewInput {
+  domain: string;
+  owner: string | null;
+  companyType: string | null;
+  monetisation: string | null;
+  contactRole: string | null;
+  contactName: string | null;
+  contactSourceUrl: string | null;
+  /** What code found when it opened the contact's source page. */
+  contactCheck: string;
+  facts: string;
+  page: string | null;
+  /** The questions the site was cited for; the page answers at least one of them. */
+  questions: string[];
+}
+
+/**
+ * The verifier reviews another agent's leads, the way a maintainer reviews a collector's records:
+ * a fixed checklist, a source and a word-for-word quote for every answer, and unsure over a guess.
+ */
+export function verifierPrompt(leads: ReviewInput[]): string {
+  return [
+    'You are the verifier for Blankspace, which helps publishers see and earn from the AI agents that read their pages. Another agent found the leads below and suggested who to contact. You did not make them; your job is to check them before a person writes to anyone.',
+    '',
+    'For EACH site answer three questions with yes, no or unsure:',
+    '1. publisher: is this an independent publisher or media site that earns from its own traffic (display ads, affiliate links, subscriptions)? A brand selling its own products, a retailer, a marketplace, a price comparison or lead-gen business, a forum or a public body is "no".',
+    '2. contact: is the suggested role the right first contact for a commercial partnership at this company, and if a person is named, does a page dated within the last two years show them in that role now? A person who has left, or a role that is editorial rather than commercial, is "no".',
+    '3. page: does the cited page actually answer one of the buying questions it was cited for (a review, a comparison or a guide), rather than a home page, a category list or an unrelated article?',
+    '',
+    'Rules, as for any reviewer:',
+    '- Every yes or no needs the page URL you read and a quote of one to three sentences copied word for word from that page. Code will open the URL and look for the quote; an answer whose quote is not on the page becomes unsure.',
+    '- If you cannot open a page or the evidence is mixed, answer unsure and say why. Never answer no just because a page would not load.',
+    '- If the contact is wrong, missing a name, or out of date and you can find the right person on a public page, give them in "better_contact" with that page URL. Code will check their name is on it. Never guess a name or an email address.',
+    '- Work fast: use web search and open at most four pages per site.',
+    '',
+    'Leads:',
+    ...leads.map((l, i) =>
+      [
+        `${i + 1}. ${l.domain}`,
+        `   owner: ${l.owner ?? 'unknown'} (${l.companyType ?? 'unknown'}); money: ${l.monetisation ?? 'unknown'}`,
+        `   site checks by code: ${l.facts}`,
+        `   suggested contact: ${l.contactName ? `${l.contactName}, ` : ''}${l.contactRole ?? 'none'}${l.contactSourceUrl ? ` (source ${l.contactSourceUrl})` : ''}; ${l.contactCheck}`,
+        l.page ? `   cited page: ${l.page}, cited for one of: ${l.questions.map((q) => `"${q}"`).join(', ')}` : '   cited page: none',
+      ].join('\n'),
+    ),
+    '',
+    'End your reply with exactly one fenced JSON block:',
+    '```json',
+    '{"sites":[{"domain":"example.co.uk","checks":[{"key":"publisher|contact|page","answer":"yes|no|unsure","note":"one sentence","url":"https://...","quote":"copied word for word"}],"better_contact":null}]}',
+    '```',
+    'better_contact, when you have one: {"name":"First Last","role":"...","source_url":"https://..."}',
+  ].join('\n');
+}
+
+const answer = z
+  .string()
+  .transform((v) => v.trim().toLowerCase())
+  .pipe(z.enum(['yes', 'no', 'unsure']).catch('unsure'));
+
+export const verifierSchema = z.object({
+  sites: z.array(
+    z.object({
+      domain: z.string(),
+      checks: z
+        .array(
+          z.object({
+            key: z.string(),
+            answer: answer,
+            note: z.string().optional().default(''),
+            url: nullableText,
+            quote: nullableText,
+          }),
+        )
+        .default([]),
+      better_contact: z
+        .object({ name: z.string(), role: nullableText, source_url: z.string() })
+        .nullable()
+        .optional()
+        .catch(null),
+    }),
+  ),
+});

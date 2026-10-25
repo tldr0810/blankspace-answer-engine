@@ -64,6 +64,11 @@ const publicLead = (l: Lead): Lead => ({
   contactName: l.verdict === 'verified' ? l.contactName : null,
   // The address the owner typed stays owner-only.
   email: l.email ? joinEmail({ ...splitEmail(l.email), to: '' }) : null,
+  // The verifier's contact quote can name a person code did not confirm.
+  review:
+    l.review && l.verdict !== 'verified'
+      ? { ...l.review, checks: l.review.checks.map((c) => (c.key === 'contact' ? { ...c, note: 'Shown to the owner.', quote: null, url: null } : c)) }
+      : l.review,
 });
 
 type AdminCheck = (c: { env: Env; req: { header: (name: string) => string | undefined } }) => boolean;
@@ -214,7 +219,7 @@ export function engineRoutes(adminOk: AdminCheck) {
       pageVerdicts: Object.fromEntries((row?.pages ?? []).filter((u) => verdicts.has(u)).map((u) => [u, verdicts.get(u)!])),
       queries: row?.queries ?? [],
       facts: facts.get(domain) ?? null,
-      lead: lead ? { ...lead, contactName: lead.verdict === 'verified' ? lead.contactName : null, email: null } : null,
+      lead: lead ? { ...publicLead(lead), email: null } : null,
     };
     return c.json(report);
   });
