@@ -727,7 +727,7 @@ async function stepDraft(env: Env, run: Run): Promise<StepResult> {
       robots: lead.facts?.robots ?? {},
       contactRole: lead.contactRole,
       contactName: verified ? lead.contactName : null,
-      reportUrl: `${origin}/#report/${run.id}/${lead.domain}`,
+      reportUrl: `${origin}/#report/${run.id}/${lead.domain}/email`,
     });
     await patchLead(env, lead.id, { email: withAddress(email, lead.address) });
   }

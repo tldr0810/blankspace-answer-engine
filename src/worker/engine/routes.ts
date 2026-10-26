@@ -6,7 +6,7 @@
  *   GET   /state                         boards, recent runs, roles, limits
  *   POST  /runs                          { kind, vertical, domain?, question? } → start a run
  *   GET   /runs/:id                      run, live feed, board, leads, agent calls
- *   GET   /runs/:id/report/:domain       a site's AI Answer Share report
+ *   GET   /runs/:id/report/:domain       a site's AI Answer Share report; ?via=email counts an open
  *   GET   /leads                         every run's leads, one per site
  *   PATCH /leads/:id                     { email?, status? } edit or approve a draft
  *   PUT   /leads/:id/outcome             { stage: sent|replied|booked|null } what came of the email
@@ -56,6 +56,7 @@ import {
   listRuns,
   patchLead,
   saveOutcome,
+  logReportOpen,
   readyEngines,
   rememberOrigin,
   roleMap,
@@ -215,6 +216,7 @@ export function engineRoutes(adminOk: AdminCheck) {
     const run = await getRun(c.env, c.req.param('id'));
     const domain = normalizeDomain(c.req.param('domain'));
     if (!run || !domain || !run.vertical) throw new HttpError(404, 'not_found', 'No such report.');
+    if (c.req.query('via') === 'email') await logReportOpen(c.env, run.id, domain);
     const { rows, total, verdicts, engines, silent } = await boardFor(c.env, run.id);
     const index = rows.findIndex((r) => r.domain === domain);
     const row = index >= 0 ? rows[index] : null;

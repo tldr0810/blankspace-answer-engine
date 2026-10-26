@@ -762,7 +762,7 @@ input[type='checkbox']:checked::after { scale: 1; }
 
 .leadrow .rk { flex: 0 0 auto; min-width: 28px; font-family: var(--display); font-weight: 800; font-size: 13px; color: var(--ink3); }
 .funnel { padding: 16px 20px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px; }
-.funnel-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; counter-reset: none; }
+.funnel-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; counter-reset: none; }
 .funnel-steps li { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1.5px solid var(--ink); border-radius: 12px; background: var(--paper2); }
 .funnel-steps li.hot { background: var(--accent-soft); }
 .funnel-steps b { font-family: var(--display); font-size: 24px; font-weight: 800; line-height: 1.1; color: var(--ink); }
@@ -1003,6 +1003,14 @@ button:active:not(:disabled):not(.primary), .button:active:not(.primary) { trans
 
 /* How it works: what the flow has learned. */
 .learn > p { margin: 6px 0 0; max-width: 72ch; }
+/* How it works: what the machine tests first and the targets that say it works. */
+.experiments h2 { margin: 0; }
+.experiments .sample-note { background: var(--watch-bg); border-color: var(--watch); color: var(--watch); }
+.test-order { margin: 14px 0 18px; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; line-height: 21px; color: var(--ink2); }
+.test-order b { color: var(--ink); }
+.learn-table.targets { margin: 6px 0 4px; font-size: 13.5px; }
+.learn-table.targets td { vertical-align: top; padding-top: 8px; padding-bottom: 8px; }
+.block { display: block; margin-top: 2px; }
 .learn-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 24px; margin-top: 16px; }
 .learn-grid > div { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .learn-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
