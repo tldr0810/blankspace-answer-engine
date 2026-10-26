@@ -208,6 +208,14 @@ CREATE TABLE IF NOT EXISTS lead_addresses (
   checked_at TEXT NOT NULL
 );
 
+-- What came of the first email, per site so it outlives the run that found the lead: sent,
+-- replied or call booked, each with when it happened (LeadOutcome as JSON).
+CREATE TABLE IF NOT EXISTS lead_outcomes (
+  domain     TEXT PRIMARY KEY,
+  data       TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 -- What happened, in words, for the run's live feed.
 CREATE TABLE IF NOT EXISTS events (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,

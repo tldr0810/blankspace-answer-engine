@@ -145,7 +145,7 @@ export default function App() {
   } else if (page === 'board') {
     body = <Board engine={engine} admin={admin} onStarted={refresh} needPassword={() => setGateOpen(true)} />;
   } else if (page === 'leads') {
-    body = <Leads engine={engine} admin={admin} focus={route.domain} needPassword={() => setGateOpen(true)} />;
+    body = <Leads engine={engine} focus={route.domain} />;
   } else if (page === 'loop') {
     body = <Loop engine={engine} />;
   } else if (page === 'how') {

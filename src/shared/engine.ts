@@ -296,6 +296,18 @@ export interface Lead {
   origin: RunOrigin;
   /** Where to write. Null until the verification layer has looked for a published address. */
   address: LeadAddress | null;
+  /** What came of the first email. Null until someone marks it sent. Kept per site. */
+  outcome: LeadOutcome | null;
+}
+
+/** After the email: each stage a lead has reached, and when. A later stage implies the earlier ones. */
+export const OUTCOME_STAGES = ['sent', 'replied', 'booked'] as const;
+export type OutcomeStage = (typeof OUTCOME_STAGES)[number];
+export const OUTCOME_LABEL: Record<OutcomeStage, string> = { sent: 'Sent', replied: 'Replied', booked: 'Call booked' };
+export interface LeadOutcome {
+  stage: OutcomeStage;
+  /** When each stage was reached; a stage skipped over takes the time of the later one. */
+  at: Partial<Record<OutcomeStage, string>>;
 }
 
 /**

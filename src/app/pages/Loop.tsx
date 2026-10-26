@@ -364,7 +364,7 @@ export default function Loop(props: { engine: EngineState }) {
           {[
             { n: 1, href: '#board', title: 'See who AI cites', text: 'Pick a category, then open any site to see the exact pages Claude and Gemini cited.' },
             { n: 2, href: examples?.report.link?.href ?? '#board', title: 'Open a publisher’s report', text: 'The free report a publisher would receive, with every number traced to a cited page.' },
-            { n: 3, href: '#leads', title: 'Read a lead', text: 'Open any row for the contact, the evidence behind it and the first email draft.' },
+            { n: 3, href: '#leads', title: 'Work a lead', text: 'Open any row for the contact, the evidence and the first email. Edit it, send it, then mark the reply or booked call.' },
             { n: 4, href: '#check', title: 'Run your own check', text: 'Type any UK publisher’s site and watch the agents work. Takes 5 to 10 minutes.' },
           ].map((t) => (
             <li key={t.n}>
@@ -376,7 +376,7 @@ export default function Loop(props: { engine: EngineState }) {
             </li>
           ))}
         </ol>
-        <p className="muted small">Anyone can browse and run a check. Approving emails and changing settings are for the owner.</p>
+        <p className="muted small">No sign-in needed: anyone can run a check and work the leads, from approving an email to marking a booked call. Only settings and whole-category runs need the owner.</p>
       </section>
 
       <div className="loop">
