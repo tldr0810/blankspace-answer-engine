@@ -29,7 +29,7 @@ const at = (deg: number) => {
 const motionOk = () => typeof window === 'undefined' || !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 type Key = 'ask' | 'count' | 'report' | 'contact' | 'email' | 'call';
-const ORDER: Key[] = ['ask', 'count', 'report', 'contact', 'email', 'call'];
+const ORDER: Key[] = ['ask', 'count', 'contact', 'report', 'email', 'call'];
 const angleOf = (i: number) => START + i * 60;
 
 interface StepDef {
@@ -53,7 +53,7 @@ const STEPS: Record<Key, StepDef> = {
     name: 'Leaderboard',
     tags: [{ cls: 't-eng', text: 'Verification layer' }],
     icon: <path d="M3.5 20h17M6.5 16.5v-5M12 16.5V5.5M17.5 16.5v-8" />,
-    what: 'Automated checks open every cited page, drops dead or off-topic ones, and counts how many answers cite each site. Marketplaces, forums and brands drop out, leaving the publishers AI already depends on.',
+    what: 'Automated checks open every cited page, drop dead or off-topic ones, and count how many answers cite each site. Every cited site is ranked here, shops and forums included, greyed out.',
     check: 'Dead and off-topic pages dropped',
   },
   report: {
@@ -61,17 +61,17 @@ const STEPS: Record<Key, StepDef> = {
     tags: [{ cls: 't-new', text: 'The hook' }],
     icon: <path d="M6 3.5h9l3.5 3.5v13.5H6zM9 11h6.5M9 14.5h6.5M9 7.5h3" />,
     what: 'Each publisher gets a free report they will want to open: which buying questions AI cites them for, who sits next to them, and which AI bots their robots.txt lets in. That traffic is what Blankspace turns into revenue.',
-    check: 'Publishers only, with deterministically counted facts',
+    check: 'Every number deterministically counted',
   },
   contact: {
-    name: 'Verified contact',
+    name: 'Leads',
     tags: [
       { cls: 't-ai', text: 'AI agent' },
       { cls: 't-eng', text: 'Verification layer' },
     ],
     icon: <path d="M12 12a3.8 3.8 0 1 0 0-7.6 3.8 3.8 0 0 0 0 7.6zM4.5 20c.8-3.6 3.8-5.6 7.5-5.6s6.7 2 7.5 5.6" />,
-    what: 'A profiler agent works out who owns the site and who to talk to first. The verification layer opens the page it cited and keeps the name only if it is really there, otherwise the lead falls back to the role. It also reads the site’s contact pages for a published address, and never guesses one.',
-    check: 'Name found on a public page, or role only',
+    what: 'Leads are picked from the leaderboard: the publishers, without the shops, forums, brands and sites already ruled out, scored on AI citations plus ads, affiliate links and CDN. A profiler agent finds who to talk to; the verification layer keeps a name only if it is on the page cited, and reads a published address, never a guessed one.',
+    check: 'Publishers only, name found on a public page or role only',
   },
   email: {
     name: 'First email',
@@ -132,6 +132,7 @@ export default function Loop(props: { engine: EngineState }) {
         text: question
           ? `“${question}” was one of ${board?.questions ?? 15} ${vertical.toLowerCase()} questions. ${lead.domain} was cited in ${lead.answers} of ${lead.total} answers.`
           : `${lead.domain} was cited in ${lead.answers} of ${lead.total} ${vertical.toLowerCase()} answers.`,
+        link: { href: '#check', label: 'Ask about your own site' },
       },
       count: {
         text: rank >= 0
@@ -146,16 +147,17 @@ export default function Loop(props: { engine: EngineState }) {
       contact: {
         text:
           lead.verdict === 'verified'
-            ? `${who}. Verified the name on ${lead.contactSourceUrl ? new URL(lead.contactSourceUrl).pathname || '/' : 'the cited page'}.`
-            : `First contact: ${who}. ${stats.verified} contacts across all verticals are verified so far.`,
-        link: { href: '#leads', label: 'See all leads' },
+            ? `${lead.domain} scores ${lead.score} of 100 as a lead. Write to ${who}, a name verified on ${lead.contactSourceUrl ? new URL(lead.contactSourceUrl).pathname || '/' : 'the cited page'}.`
+            : `${lead.domain} scores ${lead.score} of 100 as a lead. First contact: ${who}.`,
+        link: { href: '#leads', label: 'Open the leads' },
       },
       email: {
         text: subject ? `Draft subject: “${subject}”` : 'A draft waits on the Leads page for a person to review.',
-        link: { href: '#leads', label: 'Review the drafts' },
+        link: { href: `#leads/${encodeURIComponent(lead.domain)}`, label: 'Read this draft' },
       },
       call: {
-        text: 'The demo stops here on purpose: the conversation is run by the Blankspace team, not an agent.',
+        text: 'The conversation is run by the Blankspace team, not an agent. Mark the reply or the booked call on the lead, and the funnel and targets update.',
+        link: { href: '#how', label: 'See the targets' },
       },
     };
   }, [leads, engine.boards, stats.verified]);
@@ -363,8 +365,8 @@ export default function Loop(props: { engine: EngineState }) {
         <ol className="try-grid">
           {[
             { n: 1, href: '#board', title: 'See who AI cites', text: 'Pick a category, then open any site to see the exact pages Claude and Gemini cited.' },
-            { n: 2, href: examples?.report.link?.href ?? '#board', title: 'Open a publisher’s report', text: 'The free report a publisher would receive, with every number traced to a cited page.' },
-            { n: 3, href: '#leads', title: 'Work a lead', text: 'Open any row for the contact, the evidence and the first email. Edit it, send it, then mark the reply or booked call.' },
+            { n: 2, href: '#leads', title: 'Work a lead', text: 'Open any row for the contact, the evidence and the first email. Edit it, send it, then mark the reply or booked call.' },
+            { n: 3, href: examples?.report.link?.href ?? '#board', title: 'Open a publisher’s report', text: 'The free report a publisher would receive, with every number traced to a cited page.' },
             { n: 4, href: '#check', title: 'Run your own check', text: 'Type any UK publisher’s site and watch the agents work. Takes 5 to 10 minutes.' },
           ].map((t) => (
             <li key={t.n}>

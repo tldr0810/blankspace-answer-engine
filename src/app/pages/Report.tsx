@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { AI_AGENTS, ENGINE_LABEL, VERTICAL_LABEL, type CheckMiss, type SiteFacts, type SiteReport } from '../../shared/engine';
 import { api } from '../api';
 import SiteDrawer from '../components/SiteDrawer';
-import { EngineBar, EngineTag, Icon, PageSkeleton, SilentEngines, SourceMark, VerdictTag } from '../ui';
+import { EngineBar, EngineTag, Icon, NextStep, PageSkeleton, SilentEngines, SourceMark, VerdictTag } from '../ui';
 
 export default function Report(props: { runId: string; domain: string }) {
   const [report, setReport] = useState<SiteReport | null>(null);
@@ -140,6 +140,8 @@ export default function Report(props: { runId: string; domain: string }) {
           <a href={`#leads/${encodeURIComponent(report.domain)}`}>Open the draft email</a>
         </section>
       )}
+
+      <NextStep href={`#leads/${encodeURIComponent(report.domain)}`} title={`Write to ${report.domain}`} text="This report is what the publisher gets. Their lead has the contact and a first email that links here." />
 
       {open && <SiteDrawer runId={report.runId} domain={open} fullReport={open !== report.domain} onClose={() => setOpen(null)} />}
     </article>

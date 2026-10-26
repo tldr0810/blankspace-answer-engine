@@ -5,7 +5,7 @@ import { ENGINE_LABEL, VERTICALS, VERTICAL_LABEL, type Engine, type EngineState,
 import { api, ApiError } from '../api';
 import SiteDrawer from '../components/SiteDrawer';
 import { markTour } from '../components/Tour';
-import { ago, ENGINE_VAR, EngineBar, Icon, SourceMark } from '../ui';
+import { ago, ENGINE_VAR, EngineBar, Icon, NextStep, SourceMark } from '../ui';
 
 /** One engine's part of this run: how many answers came back, and whether any of them named a page. */
 function EngineStatus({ board, engine }: { board: VerticalBoard; engine: Engine }) {
@@ -76,6 +76,9 @@ export default function Board(props: { engine: EngineState; admin: boolean; onSt
           <p>
             Every buying question in a vertical, asked to each engine. A site’s bar is how many of those answers cited at least one of its
             pages.
+          </p>
+          <p className="muted small">
+            The publishers here become <a href="#leads">Leads</a>. Greyed sites are shops, forums or brands, so they are not.
           </p>
         </div>
         <button onClick={() => void rerun()} disabled={busy || props.engine.engines.length === 0}>
@@ -157,6 +160,7 @@ export default function Board(props: { engine: EngineState; admin: boolean; onSt
           <a href={`#run/${board.runId}`}>See how this run went</a>.
         </p>
       )}
+      <NextStep href="#leads" title="Leads: who to write to" text="The publishers from this board, scored, with a checked contact and a first email for each." />
       {board && open && <SiteDrawer runId={board.runId} domain={open} fullReport onClose={() => setOpen(null)} />}
     </div>
   );

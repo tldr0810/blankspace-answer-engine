@@ -1,7 +1,8 @@
-import Experiments from '../components/Experiments';
 import { useEffect, useRef, useState } from 'react';
 import type { Learning } from '../../shared/engine';
 import { api } from '../api';
+import Experiments from '../components/Experiments';
+import { NextStep } from '../ui';
 import { markTour } from '../components/Tour';
 
 /** How the engine works: who does what, and the guardrails. */
@@ -65,6 +66,7 @@ export default function How() {
           the first run, one vertical cost roughly US$2 of agent time per engine.
         </p>
       </section>
+      <NextStep href="#check" title="Try it on a site" text="Type any UK publisher’s site and watch the agents go from AI answers to a lead and a first email." />
     </div>
   );
 }

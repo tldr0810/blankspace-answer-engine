@@ -770,6 +770,10 @@ input[type='checkbox']:checked::after { scale: 1; }
 .score { font-family: var(--display); font-weight: 800; font-size: 20px; }
 
 .leadrow .rk { flex: 0 0 auto; min-width: 28px; font-family: var(--display); font-weight: 800; font-size: 13px; color: var(--ink3); }
+.next-step { position: relative; display: flex; flex-direction: column; gap: 3px; padding: 16px 48px 16px 20px; background: var(--card); border: 1.5px solid var(--ink); border-radius: 14px; box-shadow: var(--shadow-sm); color: var(--ink2); font-size: 14px; line-height: 21px; text-decoration: none; transition: translate 0.15s, box-shadow 0.15s; }
+.next-step b { color: var(--ink); font-family: var(--display); font-size: 17px; font-weight: 800; }
+.next-step:hover { translate: -1px -1px; box-shadow: var(--shadow); }
+.next-step .next-chev { position: absolute; right: 18px; top: 50%; translate: 0 -50%; width: 18px; height: 18px; }
 .funnel { padding: 16px 20px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px; }
 .funnel-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; counter-reset: none; }
 .funnel-steps li { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1.5px solid var(--ink); border-radius: 12px; background: var(--paper2); }
