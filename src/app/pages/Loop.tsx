@@ -4,12 +4,12 @@
  * scheduled refresh. Each step shows a real example from the saved results.
  */
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { VERTICAL_LABEL, type EngineState, type Lead } from '../../shared/engine';
 import { splitEmail } from '../../shared/email';
 import { api } from '../api';
 import { markTour } from '../components/Tour';
-import { Icon } from '../ui';
+import { CountUp, Icon } from '../ui';
 
 /* ───────── geometry: a 700 × 720 stage, scaled down to fit ───────── */
 
@@ -289,32 +289,35 @@ export default function Loop(props: { engine: EngineState }) {
         <span className="eyebrow">
           Step {active + 1} of {ORDER.length}
         </span>
-        <div className="dots" aria-hidden>
+        <div className={`dots${playing ? ' playing' : ''}`} style={{ '--step-ms': `${STEP_MS}ms` } as CSSProperties} aria-hidden>
           {ORDER.map((k, i) => (
             <i key={k} className={i === active ? 'on' : i < active ? 'past' : ''} />
           ))}
         </div>
       </div>
-      <h2>{step.name}</h2>
-      <div className="row">
-        {step.tags.map((t) => (
-          <span key={t.text} className={`tag ${t.cls}`}>
-            {t.text}
-          </span>
-        ))}
-      </div>
-      <p className="muted">{step.what}</p>
-      <div className="loop-example">
-        <span className="eyebrow">In this demo</span>
-        {examples === null && leads === null ? <span className="sk" style={{ width: '80%' }} /> : <p>{example?.text ?? 'Run a check to see a real example here.'}</p>}
-        {example?.link && (
-          <a className="button sm" href={example.link.href}>
-            {example.link.label} <Icon name="right" />
-          </a>
-        )}
-      </div>
-      <div className="loop-guard">
-        <Icon name="check" /> {step.check}
+      {/* Keyed on the step so each one eases in as the loop moves on. */}
+      <div key={active} className="loop-step">
+        <h2>{step.name}</h2>
+        <div className="row">
+          {step.tags.map((t) => (
+            <span key={t.text} className={`tag ${t.cls}`}>
+              {t.text}
+            </span>
+          ))}
+        </div>
+        <p className="muted">{step.what}</p>
+        <div className="loop-example">
+          <span className="eyebrow">In this demo</span>
+          {examples === null && leads === null ? <span className="sk" style={{ width: '80%' }} /> : <p>{example?.text ?? 'Run a check to see a real example here.'}</p>}
+          {example?.link && (
+            <a className="button sm" href={example.link.href}>
+              {example.link.label} <Icon name="right" />
+            </a>
+          )}
+        </div>
+        <div className="loop-guard">
+          <Icon name="check" /> {step.check}
+        </div>
       </div>
       <div className="row loop-nav">
         <button className="sm" onClick={() => pick((active + ORDER.length - 1) % ORDER.length)} aria-label="Previous step">
@@ -354,9 +357,9 @@ export default function Loop(props: { engine: EngineState }) {
           </div>
         </div>
         <div className="loop-stats">
-          <div className="stat"><b>{stats.answers}</b><span>AI answers read</span></div>
-          <div className="stat"><b>{stats.publishers}</b><span>publishers found</span></div>
-          <div className="stat hot"><b>{leads ? stats.verified : '–'}</b><span>verified contacts</span></div>
+          <div className="stat"><b><CountUp value={stats.answers} /></b><span>AI answers read</span></div>
+          <div className="stat"><b><CountUp value={stats.publishers} /></b><span>publishers found</span></div>
+          <div className="stat hot"><b>{leads ? <CountUp value={stats.verified} /> : '–'}</b><span>verified contacts</span></div>
         </div>
       </div>
 

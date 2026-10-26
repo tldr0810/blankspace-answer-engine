@@ -785,7 +785,7 @@ input[type='checkbox']:checked::after { scale: 1; }
 @media (max-width: 640px) { .funnel-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); } .funnel { padding: 14px 16px; } }
 .top-line { margin: 0; padding: 10px 20px; border-top: 2px solid var(--ink); border-bottom: 1.5px dashed var(--hair); background: var(--accent-soft); font-size: 13px; color: var(--ink2); }
 .top-line b { color: var(--ink); }
-.leadrow { grid-template-columns: 14px 40px minmax(0, 1fr) minmax(0, 1.2fr) 240px; }
+.leadrow { grid-template-columns: 14px 40px minmax(0, 1.35fr) minmax(0, 1fr) 240px; }
 .tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .tbl th { text-align: left; font-size: 12px; color: var(--ink3); text-transform: uppercase; letter-spacing: 0.06em; padding: 6px 4px; border-bottom: 1.5px dashed var(--hair); }
 .tbl td { padding: 7px 4px; border-bottom: 1.5px dashed var(--hair); }
@@ -1143,4 +1143,70 @@ button:active:not(:disabled):not(.primary), .button:active:not(.primary) { trans
 @media (max-width: 640px) {
   .board-key { padding: 10px 14px; gap: 6px; grid-template-columns: minmax(0, 1fr); }
   .board-key li { align-items: flex-start; }
+}
+
+/* ── Polish pass: no frames inside frames, nothing spilling out, and motion that explains ── */
+
+/* Run stepper: each label sits under its number and wraps, so every step fits without scrolling. */
+@media (min-width: 1101px) {
+  .stepper { align-items: flex-start; overflow: visible; }
+  .stepper > .row { align-items: flex-start !important; }
+  .sp { flex-direction: column; gap: 6px; white-space: normal; text-align: center; width: 112px; padding: 4px 2px; line-height: 16px; font-size: 12.5px; }
+  .conn { margin: 15px -30px 0; min-width: 8px; }
+}
+@media (min-width: 641px) and (max-width: 1100px) {
+  .sp:not(.now) .lbl { display: none; }
+  .conn { flex: 1 1 8px; min-width: 8px; }
+}
+
+/* Cards inside a card read as tiles, not a second frame. */
+.funnel-steps li { border: none; background: var(--paper2); }
+.funnel-steps li.hot { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.panel .leadcard { box-shadow: none; border-color: var(--hair); background: var(--paper); }
+.panel .leadcard:hover { box-shadow: none; translate: none; border-color: var(--ink); }
+
+/* Leaderboard: on phones each engine's note wraps inside the card instead of running past it. */
+@media (max-width: 640px) {
+  .legend.eng-legend { flex-wrap: wrap; overflow: visible; margin-inline: 0; padding: 0; row-gap: 8px; }
+  .eng-legend .eng-status { white-space: normal; text-align: left; justify-content: flex-start; flex-wrap: wrap; }
+  /* Side-scrolling rows fade at the right edge so it is clear there is more. */
+  .chips, .pb-top .seg { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); }
+}
+
+/* Drawer slides back out instead of vanishing. */
+.drawer-wrap.closing .drawer { animation: drawer-out 0.2s cubic-bezier(0.4, 0, 1, 1) both; }
+.drawer-wrap.closing .drawer-scrim { animation: scrim-out 0.2s ease-in both; }
+@keyframes drawer-out { to { translate: 100% 0; } }
+@keyframes scrim-out { to { opacity: 0; } }
+
+/* Loop: each step's text eases in, and the current dot fills while autoplay counts down. */
+.loop-step { display: flex; flex-direction: column; gap: 12px; animation: step-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes step-in { from { opacity: 0; translate: 0 6px; } }
+.dots i { transition: width 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.2s; position: relative; overflow: hidden; }
+.dots i.on { width: 22px; border-radius: 999px; }
+.dots.playing i.on { background: var(--dot); }
+.dots.playing i.on::after { content: ''; position: absolute; inset: 0; background: var(--accent); transform-origin: left; animation: dot-fill var(--step-ms, 4000ms) linear both; }
+@keyframes dot-fill { from { scale: 0 1; } }
+
+/* Count-ups keep their width steady while the digits change. */
+.countup { font-variant-numeric: tabular-nums; }
+.funnel-steps .countup, .stat .countup, .kpi .countup { display: inline; font: inherit; color: inherit; margin: 0; padding: 0; }
+
+/* Clickable cards and rows answer the press, not just the hover. */
+.try-card:active, .next-step:active, a.leadcard:active { translate: 1px 1px; box-shadow: var(--shadow-sm); transition-duration: 0.05s; }
+.dr { transition: background-color 0.15s; }
+.dr:active { background: var(--soft); }
+.tag { transition: background-color 0.2s, color 0.2s, border-color 0.2s; }
+
+/* Headline tiles rise in one after another. */
+.kpis > *, .loop-stats > *, .funnel-steps > li { animation: page-in 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+.kpis > :nth-child(2), .loop-stats > :nth-child(2), .funnel-steps > :nth-child(2) { animation-delay: 50ms; }
+.kpis > :nth-child(3), .loop-stats > :nth-child(3), .funnel-steps > :nth-child(3) { animation-delay: 100ms; }
+.kpis > :nth-child(4), .funnel-steps > :nth-child(4) { animation-delay: 150ms; }
+.funnel-steps > :nth-child(5) { animation-delay: 200ms; }
+.funnel-steps > :nth-child(6) { animation-delay: 250ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .loop-step, .kpis > *, .loop-stats > *, .funnel-steps > li, .drawer-wrap.closing .drawer, .drawer-wrap.closing .drawer-scrim, .dots.playing i.on::after { animation: none !important; }
+  .dots.playing i.on { background: var(--accent); }
 }

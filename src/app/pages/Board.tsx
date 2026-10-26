@@ -105,7 +105,7 @@ export default function Board(props: { engine: EngineState; admin: boolean; onSt
               </p>
             )}
           </div>
-          <div className="legend">
+          <div className="legend eng-legend">
             {board && [...board.engines, ...(board.silent ?? [])].map((e) => <EngineStatus key={e} board={board} engine={e} />)}
           </div>
         </div>
