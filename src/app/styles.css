@@ -57,7 +57,7 @@ code { font-family: var(--mono); font-size: 12px; background: var(--soft); borde
 .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink3); }
 
 /* ── tags ── */
-.tag { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 16px; white-space: nowrap; }
+.tag { display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 16px; white-space: nowrap; }
 .t-ai { background: var(--ai-bg); color: var(--ai); }
 .t-you { background: var(--you-bg); color: var(--you); }
 .t-sim { background: var(--sim-bg); color: var(--sim); }
