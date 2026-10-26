@@ -120,6 +120,10 @@ export function hostOf(url: string): string {
 export interface PickerOption {
   value: string;
   label: string;
+  /** A count shown on the right of the option, and after the label on the button. */
+  count?: number;
+  /** One short line under the option saying what it means. */
+  hint?: string;
 }
 
 /** A dropdown drawn in the app's own style, in place of the browser's native select menu. */
@@ -199,7 +203,10 @@ export function Picker(props: {
         onKeyDown={onKey}
       >
         {props.dot && <i className="picker-dot" />}
-        <span className="picker-val">{current?.label ?? ''}</span>
+        <span className="picker-val">
+          {current?.label ?? ''}
+          {current?.count !== undefined && <span className="picker-count">{current.count}</span>}
+        </span>
         <Icon name="down" className="picker-chev" />
       </button>
       {open && (
@@ -217,7 +224,11 @@ export function Picker(props: {
               onClick={() => choose(i)}
             >
               <span className="check">{i === selected && <Icon name="check" size={12} />}</span>
-              {o.label}
+              <span className="picker-opt">
+                <span className="picker-label">{o.label}</span>
+                {o.hint && <span className="picker-hint">{o.hint}</span>}
+              </span>
+              {o.count !== undefined && <span className="picker-count">{o.count}</span>}
             </li>
           ))}
         </ul>

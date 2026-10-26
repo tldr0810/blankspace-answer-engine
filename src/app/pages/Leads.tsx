@@ -12,6 +12,14 @@ import { isEmailAddress, joinEmail, mailtoHref, splitEmail, type EmailParts } fr
 import { hostOf, Icon, OriginTag, PageSkeleton, Picker, ReviewTag, VerdictTag } from '../ui';
 
 const ORIGINS: RunOrigin[] = ['schedule', 'check', 'owner', 'seed'];
+/** One line under each option of the source filter: where the leads came from. */
+const SOURCE_HINT: Record<RunOrigin, string> = {
+  schedule: 'Found by the agent that refreshes one category every 6 hours.',
+  check: 'Found when someone typed a site on the Check page.',
+  owner: 'Found when the owner refreshed a category by hand.',
+  seed: 'From the first full run on 21 October, before the schedule started.',
+};
+
 /** The call list: the first this many ranked leads are who to write to first. */
 const TOP = 25;
 
@@ -106,8 +114,8 @@ export default function Leads(props: { engine: EngineState; focus: string | null
             onChange={(value) => setSource(value as RunOrigin | 'any')}
             label="Source"
             options={[
-              { value: 'any', label: 'All sources' },
-              ...sources.map((o) => ({ value: o, label: `${ORIGIN_LABEL[o]} ${leads.filter((l) => l.origin === o).length}` })),
+              { value: 'any', label: 'All sources', count: leads.length, hint: 'Every lead, however it was found.' },
+              ...sources.map((o) => ({ value: o, label: ORIGIN_LABEL[o], count: leads.filter((l) => l.origin === o).length, hint: SOURCE_HINT[o] })),
             ]}
           />
           <div className="tabs" role="tablist">
