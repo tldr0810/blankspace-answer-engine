@@ -36,7 +36,7 @@ const STEPS: (Spot & { id: TourStep; title: string; text: string; who: Who[] })[
   {
     id: 'board',
     title: 'Who AI cites',
-    text: 'Agents in the cloud asked Claude, Gemini and ChatGPT real UK buying questions. The verification layer opened every cited page and counted only the ones that hold up. Open a site to see the pages AI read.',
+    text: 'Agents in the cloud asked Claude and Gemini real UK buying questions. The verification layer opened every cited page and counted only the ones that hold up. Open a site to see the pages AI read.',
     who: [AI, CHECK],
     hash: 'board',
     target: '[data-tour="board"]',
