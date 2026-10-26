@@ -344,3 +344,29 @@ export function NextStep(props: { href: string; title: string; text: string }) {
     </a>
   );
 }
+
+/** A number that counts up from zero when it first shows, so a page's headline figures arrive with it. */
+export function CountUp(props: { value: number; ms?: number }) {
+  const { value, ms = 700 } = props;
+  const [shown, setShown] = useState(() => (window.matchMedia('(prefers-reduced-motion: reduce)').matches ? value : 0));
+  const last = useRef(shown);
+  last.current = shown;
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || value === 0) {
+      setShown(value);
+      return;
+    }
+    let frame = 0;
+    const start = performance.now();
+    const from = last.current;
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / ms);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setShown(Math.round(from + (value - from) * eased));
+      if (t < 1) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [value, ms]);
+  return <span className="countup">{shown}</span>;
+}

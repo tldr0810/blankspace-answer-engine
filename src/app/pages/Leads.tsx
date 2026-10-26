@@ -9,7 +9,7 @@ import { EDGE_CDNS, finalDecision, ORIGIN_LABEL, OUTCOME_LABEL, OUTCOME_STAGES, 
 import { api, ApiError } from '../api';
 import { markTour } from '../components/Tour';
 import { isEmailAddress, joinEmail, mailtoHref, splitEmail, type EmailParts } from '../../shared/email';
-import { hostOf, Icon, NextStep, OriginTag, PageSkeleton, Picker, ReviewTag, VerdictTag } from '../ui';
+import { CountUp, hostOf, Icon, NextStep, OriginTag, PageSkeleton, Picker, ReviewTag, VerdictTag } from '../ui';
 
 const ORIGINS: RunOrigin[] = ['schedule', 'check', 'owner', 'seed'];
 /** One line under each option of the source filter: where the leads came from. */
@@ -130,12 +130,12 @@ export default function Leads(props: { engine: EngineState; focus: string | null
 
       <section className="card funnel" aria-label="From lead to booked call">
         <ol className="funnel-steps">
-          <li><b>{funnel.ranked}</b><span>Ranked</span></li>
-          <li><b>{funnel.approved}</b><span>Approved</span></li>
-          <li><b>{funnel.sent}</b><span>Sent</span></li>
-          <li><b>{funnel.opened}</b><span>Report opened</span><small>{rate(funnel.opened, funnel.sent)}</small></li>
-          <li><b>{funnel.replied}</b><span>Replied</span><small>{rate(funnel.replied, funnel.sent)}</small></li>
-          <li className="hot"><b>{funnel.booked}</b><span>Call booked</span><small>{rate(funnel.booked, funnel.sent)}</small></li>
+          <li><b><CountUp value={funnel.ranked} /></b><span>Ranked</span></li>
+          <li><b><CountUp value={funnel.approved} /></b><span>Approved</span></li>
+          <li><b><CountUp value={funnel.sent} /></b><span>Sent</span></li>
+          <li><b><CountUp value={funnel.opened} /></b><span>Report opened</span><small>{rate(funnel.opened, funnel.sent)}</small></li>
+          <li><b><CountUp value={funnel.replied} /></b><span>Replied</span><small>{rate(funnel.replied, funnel.sent)}</small></li>
+          <li className="hot"><b><CountUp value={funnel.booked} /></b><span>Call booked</span><small>{rate(funnel.booked, funnel.sent)}</small></li>
         </ol>
         <p className="muted small">
           Open a lead and mark what happened after the email; report opens count on their own from the email’s link. <a href="#how">How it works</a> reads these against targets.{' '}

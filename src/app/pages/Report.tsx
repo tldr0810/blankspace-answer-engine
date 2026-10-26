@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { AI_AGENTS, ENGINE_LABEL, VERTICAL_LABEL, type CheckMiss, type SiteFacts, type SiteReport } from '../../shared/engine';
 import { api } from '../api';
 import SiteDrawer from '../components/SiteDrawer';
-import { EngineBar, EngineTag, Icon, NextStep, PageSkeleton, SilentEngines, SourceMark, VerdictTag } from '../ui';
+import { CountUp, EngineBar, EngineTag, Icon, NextStep, PageSkeleton, SilentEngines, SourceMark, VerdictTag } from '../ui';
 
 export default function Report(props: { runId: string; domain: string }) {
   const [report, setReport] = useState<SiteReport | null>(null);
@@ -46,12 +46,12 @@ export default function Report(props: { runId: string; domain: string }) {
         <div className="kpi hot">
           <div className="l">AI answers citing you</div>
           <div className="v">
-            {answers} <small className="muted">of {report.total}</small>
+            <CountUp value={answers} /> <small className="muted">of {report.total}</small>
           </div>
         </div>
         <div className="kpi">
           <div className="l">Answer share</div>
-          <div className="v">{share}%</div>
+          <div className="v"><CountUp value={share} />%</div>
         </div>
         <div className="kpi">
           <div className="l">Rank among publishers</div>
@@ -59,7 +59,7 @@ export default function Report(props: { runId: string; domain: string }) {
         </div>
         <div className="kpi">
           <div className="l">Pages AI relied on</div>
-          <div className="v">{report.pages.length}</div>
+          <div className="v"><CountUp value={report.pages.length} /></div>
         </div>
       </div>
 

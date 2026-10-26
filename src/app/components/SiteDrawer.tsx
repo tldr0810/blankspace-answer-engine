@@ -21,7 +21,14 @@ export default function SiteDrawer(props: { runId: string; domain: string; onClo
   const [error, setError] = useState('');
   const panel = useRef<HTMLDivElement>(null);
   const closeBtn = useRef<HTMLButtonElement>(null);
-  const { onClose } = props;
+  const [closing, setClosing] = useState(false);
+  // The drawer slides back out before it unmounts; with reduced motion it just goes.
+  const onClose = () => {
+    if (closing) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return props.onClose();
+    setClosing(true);
+    window.setTimeout(props.onClose, 200);
+  };
 
   useEffect(() => {
     setReport(null);
@@ -72,7 +79,7 @@ export default function SiteDrawer(props: { runId: string; domain: string; onClo
   const max = report ? Math.max(1, ...report.board.map((r) => r.answers)) : 1;
 
   return (
-    <div className="drawer-wrap" onKeyDown={onKey}>
+    <div className={`drawer-wrap${closing ? ' closing' : ''}`} onKeyDown={onKey}>
       <div className="drawer-scrim" onClick={onClose} aria-hidden />
       <div className="drawer" ref={panel} role="dialog" aria-modal="true" aria-labelledby="drawer-title">
         <header className="drawer-head">
