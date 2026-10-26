@@ -372,6 +372,15 @@ input[type='text'], input[type='password'] { flex: 1; min-width: 0; font: inheri
 .picker-menu li { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; cursor: pointer; color: var(--ink2); font-weight: 600; }
 .picker-menu li.active { background: var(--paper); color: var(--ink); }
 .picker-menu li[aria-selected='true'] { color: var(--ink); }
+.lead-source .picker-menu li { white-space: nowrap; }
+.picker-opt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.picker-hint { font-size: 12px; font-weight: 500; line-height: 16px; color: var(--ink3); white-space: normal; }
+.picker-count { margin-left: auto; padding-left: 12px; font-variant-numeric: tabular-nums; color: var(--ink3); font-weight: 700; }
+.picker-btn .picker-count { margin-left: 0; padding-left: 6px; }
+/* The source filter's options say what they mean, so its menu is wider than its button. */
+.lead-source .picker-menu { right: auto; width: max-content; min-width: 100%; max-width: min(300px, calc(100vw - 32px)); }
+.lead-source .picker-menu li { align-items: flex-start; }
+.lead-source .picker-menu .check { padding-top: 2px; }
 .picker-menu .check { width: 14px; color: var(--accent); font-size: 12px; }
 .picker-menu .hint { margin-left: auto; font-size: 11px; color: var(--watch); }
 
