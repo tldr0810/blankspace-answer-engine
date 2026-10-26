@@ -332,3 +332,15 @@ export function PageSkeleton(props: { kind?: 'board' | 'run' | 'report' | 'leads
     </div>
   );
 }
+
+/** The way on at the foot of a page, so the path through the app reads as one journey. */
+export function NextStep(props: { href: string; title: string; text: string }) {
+  return (
+    <a className="next-step" href={props.href}>
+      <span className="eyebrow">Next</span>
+      <b>{props.title}</b>
+      <span>{props.text}</span>
+      <Icon name="chevron" className="next-chev" />
+    </a>
+  );
+}

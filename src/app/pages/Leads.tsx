@@ -9,7 +9,7 @@ import { EDGE_CDNS, finalDecision, ORIGIN_LABEL, OUTCOME_LABEL, OUTCOME_STAGES, 
 import { api, ApiError } from '../api';
 import { markTour } from '../components/Tour';
 import { isEmailAddress, joinEmail, mailtoHref, splitEmail, type EmailParts } from '../../shared/email';
-import { hostOf, Icon, OriginTag, PageSkeleton, Picker, ReviewTag, VerdictTag } from '../ui';
+import { hostOf, Icon, NextStep, OriginTag, PageSkeleton, Picker, ReviewTag, VerdictTag } from '../ui';
 
 const ORIGINS: RunOrigin[] = ['schedule', 'check', 'owner', 'seed'];
 /** One line under each option of the source filter: where the leads came from. */
@@ -94,7 +94,7 @@ export default function Leads(props: { engine: EngineState; focus: string | null
           <span className="eyebrow">Leads</span>
           <h1>Who to talk to, and what to say first</h1>
           <p>
-            Each publisher the engine kept, one row per site across every run, the person or role to contact, whether automated checks confirmed that name on a public page, and a first email
+            Picked from the <a href="#board">Leaderboard</a>: each publisher AI cites, without the shops, forums, brands and sites already ruled out. One row per site across every run, the person or role to contact, whether automated checks confirmed that name on a public page, and a first email
             built only from counted facts. Nothing is sent from here.
           </p>
           <p>
@@ -227,6 +227,7 @@ export default function Leads(props: { engine: EngineState; focus: string | null
           </Fragment>
         ))}
       </section>
+      <NextStep href="#how" title="Is it working?" text="Mark replies and booked calls on a lead. How it works reads them against targets: open rate, reply rate, calls a week." />
     </div>
   );
 }
