@@ -120,7 +120,7 @@ export const ROLE_LABEL: Record<Role, string> = {
 export const ROLE_HELP: Record<Role, string> = {
   scout_claude: 'A Claude agent with web search. Answers the buying questions and lists the pages it relied on.',
   scout_gemini: 'A Gemini agent with Google search. Same job, second engine, so share is not one model’s taste.',
-  scout_gpt: 'Optional. An OpenAI agent with live web search.',
+  scout_gpt: 'Leave unassigned for now. A ChatGPT agent in the cloud has no web search of its own, so every answer it gives cites nothing.',
   profiler: 'Researches who owns each site and who to talk to. Its names are verified by automated checks before you see them.',
   verifier: 'Optional. Reviews each lead the way an editor would: is it a publisher, is the contact right and current, does the cited page answer the question. Must be a different agent from the profiler, ideally another model family.',
 };

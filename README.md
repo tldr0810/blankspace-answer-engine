@@ -1,7 +1,7 @@
 # Blankspace Answer Share
 
 How often do AI shopping answers send buyers to a publisher's site? This app asks real AI agents
-(Claude and Gemini running on Manyfold, optionally a ChatGPT agent) the questions UK shoppers ask,
+(Claude and Gemini running on Manyfold) the questions UK shoppers ask,
 counts who they cite, checks how each cited site makes money and which AI agents its robots.txt
 lets in, finds the right person to talk to, and drafts a first email built only from counted facts.
 
@@ -38,7 +38,7 @@ Agents are called over A2A; tokens are sealed with AES-GCM in D1 and never reach
    Durable Object are created for you.
 2. Set an owner password: `npx wrangler secret put ADMIN_PASSWORD`.
 3. Open **Settings**, click **Connect Manyfold**, and approve the agents.
-4. Assign roles: Claude scout, Gemini scout, optional ChatGPT scout, and a profiler.
+4. Assign roles: Claude scout, Gemini scout, and a profiler. Leave the ChatGPT scout unassigned: a Codex agent on Managed OpenAI has no web search, so it cites nothing.
 
 Visitors can run site and question checks up to `DAILY_RUN_LIMIT` a day (12 by default). Full
 vertical runs need the owner password. Each live run spends agent turns on your Manyfold account.

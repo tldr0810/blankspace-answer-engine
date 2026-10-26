@@ -46,7 +46,7 @@ const STEPS: Record<Key, StepDef> = {
     name: 'AI answers',
     tags: [{ cls: 't-ai', text: 'AI agents' }],
     icon: <path d="M4 5.5h16v10H9l-5 4zM8 9.5h8M8 12.5h5" />,
-    what: 'Claude, Gemini and ChatGPT agents, running in the cloud, search the web for real UK buying questions and answer like a shopper would, citing the pages they lean on. A run starts in one of two ways: every 6 hours on its own for the next category, or when someone types a site on the Check page.',
+    what: 'Claude and Gemini agents, running in the cloud, search the web for real UK buying questions and answer like a shopper would, citing the pages they lean on. A run starts in one of two ways: every 6 hours on its own for the next category, or when someone types a site on the Check page.',
     check: 'Only pages its own search returned',
   },
   count: {
