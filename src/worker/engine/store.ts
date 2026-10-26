@@ -12,6 +12,9 @@ import {
   type Engine,
   type Lead,
   type LeadAddress,
+  type LeadOutcome,
+  OUTCOME_STAGES,
+  type OutcomeStage,
   type LeadReview,
   type SiteRule,
   type Role,
@@ -382,11 +385,12 @@ export async function bestLeads(env: Env): Promise<Lead[]> {
 }
 
 async function toLeads(env: Env, rows: LeadRow[]): Promise<Lead[]> {
-  const [facts, reviews, addresses, origins] = await Promise.all([
+  const [facts, reviews, addresses, origins, outcomes] = await Promise.all([
     siteFacts(env, rows.map((r) => r.domain)),
     leadReviews(env, rows.map((r) => r.id)),
     leadAddresses(env, rows.map((r) => r.id)),
     runOrigins(env, [...new Set(rows.map((r) => r.run_id))]),
+    leadOutcomes(env, [...new Set(rows.map((r) => r.domain))]),
   ]);
   return rows.map((r) => ({
     id: r.id,
@@ -415,7 +419,42 @@ async function toLeads(env: Env, rows: LeadRow[]): Promise<Lead[]> {
     review: reviews.get(r.id) ?? null,
     origin: origins.get(r.run_id) ?? 'schedule',
     address: addresses.get(r.id) ?? null,
+    outcome: outcomes.get(r.domain) ?? null,
   }));
+}
+
+async function leadOutcomes(env: Env, domains: string[]): Promise<Map<string, LeadOutcome>> {
+  const out = new Map<string, LeadOutcome>();
+  for (let i = 0; i < domains.length; i += 50) {
+    const chunk = domains.slice(i, i + 50);
+    if (!chunk.length) continue;
+    const { results } = await env.DB.prepare(`SELECT domain, data FROM lead_outcomes WHERE domain IN (${chunk.map(() => '?').join(', ')})`)
+      .bind(...chunk)
+      .all<{ domain: string; data: string }>();
+    for (const row of results ?? []) {
+      const o = json<LeadOutcome | null>(row.data, null);
+      if (o) out.set(row.domain, o);
+    }
+  }
+  return out;
+}
+
+/** Move a site to a stage after the email, or clear it with null. Stages it skips take the same time. */
+export async function saveOutcome(env: Env, domain: string, stage: OutcomeStage | null, prev: LeadOutcome | null): Promise<LeadOutcome | null> {
+  if (!stage) {
+    await env.DB.prepare('DELETE FROM lead_outcomes WHERE domain = ?').bind(domain).run();
+    return null;
+  }
+  const at = now();
+  const upto = OUTCOME_STAGES.slice(0, OUTCOME_STAGES.indexOf(stage) + 1);
+  const outcome: LeadOutcome = { stage, at: Object.fromEntries(upto.map((s) => [s, prev?.at[s] ?? at])) };
+  await env.DB.prepare(
+    `INSERT INTO lead_outcomes (domain, data, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT(domain) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`,
+  )
+    .bind(domain, JSON.stringify(outcome), at)
+    .run();
+  return outcome;
 }
 
 async function runOrigins(env: Env, ids: string[]): Promise<Map<string, RunOrigin>> {
@@ -552,7 +591,7 @@ export async function saveReview(env: Env, leadId: string, review: LeadReview): 
     .run();
 }
 
-export async function insertLead(env: Env, lead: Omit<Lead, 'facts' | 'review' | 'origin' | 'address'>): Promise<void> {
+export async function insertLead(env: Env, lead: Omit<Lead, 'facts' | 'review' | 'origin' | 'address' | 'outcome'>): Promise<void> {
   await env.DB.prepare(
     `INSERT OR REPLACE INTO leads (id, run_id, vertical, domain, score, answers, total, citations, pages, queries, owner, company_type,
        monetisation, ai_deal, contact_role, contact_name, contact_source_url, why, verdict, verify_note, email, status, updated_at)

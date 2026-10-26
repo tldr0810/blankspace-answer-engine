@@ -4,16 +4,18 @@
  * fact-check could not confirm are shown as the role only.
  */
 
-import { useEffect, useRef, useState } from 'react';
-import { EDGE_CDNS, ORIGIN_LABEL, PAID_LOOKUP, PERSON_CALL_LABEL, PERSON_CALLS, REVIEW_CHECK_LABEL, scoreParts, VERTICAL_LABEL, type EngineState, type Lead, type LeadReview, type PersonCall, type RunOrigin, type Verdict } from '../../shared/engine';
+import { Fragment, useEffect, useRef, useState } from 'react';
+import { EDGE_CDNS, finalDecision, ORIGIN_LABEL, OUTCOME_LABEL, OUTCOME_STAGES, type LeadOutcome, type OutcomeStage, PAID_LOOKUP, PERSON_CALL_LABEL, PERSON_CALLS, REVIEW_CHECK_LABEL, scoreParts, VERTICAL_LABEL, type EngineState, type Lead, type LeadReview, type PersonCall, type RunOrigin, type Verdict } from '../../shared/engine';
 import { api, ApiError } from '../api';
 import { markTour } from '../components/Tour';
 import { isEmailAddress, joinEmail, mailtoHref, splitEmail, type EmailParts } from '../../shared/email';
 import { hostOf, Icon, OriginTag, PageSkeleton, Picker, ReviewTag, VerdictTag } from '../ui';
 
 const ORIGINS: RunOrigin[] = ['schedule', 'check', 'owner', 'seed'];
+/** The call list: the first this many ranked leads are who to write to first. */
+const TOP = 25;
 
-export default function Leads(props: { engine: EngineState; admin: boolean; needPassword: () => void; focus: string | null }) {
+export default function Leads(props: { engine: EngineState; focus: string | null }) {
   // Refetch when a run finishes, so new leads show without a reload.
   const doneRuns = props.engine.runs.filter((r) => r.status === 'done').map((r) => r.id).join(',');
   const [leads, setLeads] = useState<Lead[] | null>(null);
@@ -34,7 +36,7 @@ export default function Leads(props: { engine: EngineState; admin: boolean; need
     return () => {
       cancelled = true;
     };
-  }, [doneRuns, props.admin]);
+  }, [doneRuns]);
 
   useEffect(() => {
     if (!leads || !props.focus || focused.current === props.focus) return;
@@ -58,8 +60,16 @@ export default function Leads(props: { engine: EngineState; admin: boolean; need
     .filter((l) => (filter === 'verified' ? l.verdict === 'verified' : filter === 'approved' ? l.status === 'approved' : true))
     .filter((l) => source === 'any' || l.origin === source);
   const sources = ORIGINS.filter((o) => leads.some((l) => l.origin === o));
+  // Leads arrive ranked by score. A lead the verifier held back or a person skipped gets no rank.
+  const rank = new Map<string, number>();
+  for (const l of leads) if (finalDecision(l.review) !== 'reject' && l.status !== 'skipped') rank.set(l.id, rank.size + 1);
+  const lastTop = [...shown].reverse().find((l) => (rank.get(l.id) ?? Infinity) <= TOP)?.id;
   // The tour points at the top lead, so its tip sits over the column headings rather than another lead.
   const tourLead = shown[0]?.id;
+  // The funnel after the email: each stage counts every lead that reached it or went further.
+  const reached = (st: OutcomeStage) => leads.filter((l) => l.outcome && OUTCOME_STAGES.indexOf(l.outcome.stage) >= OUTCOME_STAGES.indexOf(st)).length;
+  const funnel = { ranked: rank.size, approved: leads.filter((l) => l.status === 'approved').length, sent: reached('sent'), replied: reached('replied'), booked: reached('booked') };
+  const rate = (n: number, of: number) => (of ? `${Math.round((n / of) * 100)}% of sent` : 'none sent yet');
   const update = (id: string, patch: Partial<Lead>) => setLeads((all) => all!.map((l) => (l.id === id ? { ...l, ...patch } : l)));
 
   return (
@@ -71,6 +81,11 @@ export default function Leads(props: { engine: EngineState; admin: boolean; need
           <p>
             Each publisher the engine kept, one row per site across every run, the person or role to contact, whether automated checks confirmed that name on a public page, and a first email
             built only from counted facts. Nothing is sent from here.
+          </p>
+          <p>
+            <b>Ranked by score, best first.</b> The top {TOP} are who to write to first. The list keeps growing past {TOP} because the agents keep
+            finding publishers every 6 hours, so a new site that outscores one in the top {TOP} moves up on its own. A lead the second review held back
+            gets no rank and sits at the bottom.
           </p>
           <p className="muted small">
             Leads come in two ways: <OriginTag origin="schedule" /> the scheduled agent refreshes one category on its own, and{' '}
@@ -97,6 +112,20 @@ export default function Leads(props: { engine: EngineState; admin: boolean; need
           </div>
         </div>
       </div>
+
+      <section className="card funnel" aria-label="From lead to booked call">
+        <ol className="funnel-steps">
+          <li><b>{funnel.ranked}</b><span>Ranked</span></li>
+          <li><b>{funnel.approved}</b><span>Approved</span></li>
+          <li><b>{funnel.sent}</b><span>Sent</span></li>
+          <li><b>{funnel.replied}</b><span>Replied</span><small>{rate(funnel.replied, funnel.sent)}</small></li>
+          <li className="hot"><b>{funnel.booked}</b><span>Call booked</span><small>{rate(funnel.booked, funnel.sent)}</small></li>
+        </ol>
+        <p className="muted small">
+          Open a lead and mark what happened after the email. The reply and booking rates show which sites, contacts and emails work.{' '}
+          <b>CRM:</b> each stage is meant to sync to the team’s CRM (HubSpot, Salesforce or Attio) through a connector, and agents can read and update deals over MCP. Not connected in this build.
+        </p>
+      </section>
 
       <section className="card lead-key" aria-label="How to read this list">
         <div className="lk-score">
@@ -165,15 +194,21 @@ export default function Leads(props: { engine: EngineState; admin: boolean; need
         </div>
         {shown.length === 0 && <p className="empty">Nothing here yet.</p>}
         {shown.map((l) => (
+          <Fragment key={l.id}>
           <LeadRow
-            key={l.id}
             lead={l}
             tour={l.id === tourLead}
             open={open === l.id}
             onToggle={() => {
               if (open !== l.id) markTour('review');
               setOpen(open === l.id ? null : l.id);
-            }} admin={props.admin} needPassword={props.needPassword} onUpdate={(p) => update(l.id, p)} />
+            }} rank={rank.get(l.id)} onUpdate={(p) => update(l.id, p)} />
+          {l.id === lastTop && rank.size > TOP && (
+            <p className="top-line">
+              <b>Top {TOP} above.</b> {rank.size - TOP} more ranked below, next in line as new runs come in.
+            </p>
+          )}
+          </Fragment>
         ))}
       </section>
     </div>
@@ -261,7 +296,7 @@ const REVIEW_KEY: [LeadReview['decision'], string][] = [
   ['unsure', 'Could not tell, its quote was not on the page, or the contact is wrong. A person decides.'],
 ];
 
-function LeadRow(props: { lead: Lead; tour: boolean; open: boolean; onToggle: () => void; admin: boolean; needPassword: () => void; onUpdate: (patch: Partial<Lead>) => void }) {
+function LeadRow(props: { lead: Lead; rank?: number; tour: boolean; open: boolean; onToggle: () => void; onUpdate: (patch: Partial<Lead>) => void }) {
   const { lead } = props;
   // An address the verification layer found fills an empty To line.
   const stored = (): EmailParts => {
@@ -280,10 +315,6 @@ function LeadRow(props: { lead: Lead; tour: boolean; open: boolean; onToggle: ()
   const set = (key: keyof EmailParts) => (e: { target: { value: string } }) => setDraft((d) => ({ ...d, [key]: e.target.value }));
 
   const save = async (patch: { email?: string; status?: Lead['status'] }) => {
-    if (!props.admin) {
-      props.needPassword();
-      return false;
-    }
     setSaving(true);
     setError('');
     try {
@@ -300,7 +331,6 @@ function LeadRow(props: { lead: Lead; tour: boolean; open: boolean; onToggle: ()
 
   const [calling, setCalling] = useState(false);
   const makeCall = async (call: PersonCall) => {
-    if (!props.admin) return props.needPassword();
     setCalling(true);
     setError('');
     try {
@@ -315,7 +345,22 @@ function LeadRow(props: { lead: Lead; tour: boolean; open: boolean; onToggle: ()
 
   const send = async () => {
     if (!(await save({ email: text, status: 'approved' }))) return;
+    if (!lead.outcome) void track('sent');
     window.location.href = mailtoHref(draft);
+  };
+
+  const [tracking, setTracking] = useState(false);
+  const track = async (stage: OutcomeStage | null) => {
+    setTracking(true);
+    setError('');
+    try {
+      const r = await api<{ outcome: LeadOutcome | null }>(`/api/engine/leads/${encodeURIComponent(lead.id)}/outcome`, { method: 'PUT', body: JSON.stringify({ stage }) });
+      props.onUpdate({ outcome: r.outcome, ...(r.outcome ? { status: 'approved' as const } : {}) });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : String(err));
+    } finally {
+      setTracking(false);
+    }
   };
 
   const copy = async () => {
@@ -336,6 +381,7 @@ function LeadRow(props: { lead: Lead; tour: boolean; open: boolean; onToggle: ()
         </span>
         <span className="fit">{lead.score}</span>
         <span className="n">
+          {props.rank && <span className="rk">#{props.rank}</span>}
           <span className="nm">{lead.domain}</span>
           <span className="tag t-mute">{VERTICAL_LABEL[lead.vertical]}</span>
           <OriginTag origin={lead.origin} />
@@ -347,7 +393,11 @@ function LeadRow(props: { lead: Lead; tour: boolean; open: boolean; onToggle: ()
         <span className="row">
           <VerdictTag lead={lead} />
           <ReviewTag review={lead.review} />
-          {lead.status !== 'draft' && <span className={`tag ${lead.status === 'approved' ? 't-you' : 't-mute'}`}>{lead.status}</span>}
+          {lead.outcome ? (
+            <span className={`tag ${lead.outcome.stage === 'booked' ? 't-new' : 't-you'}`}>{OUTCOME_LABEL[lead.outcome.stage]}</span>
+          ) : (
+            lead.status !== 'draft' && <span className={`tag ${lead.status === 'approved' ? 't-you' : 't-mute'}`}>{lead.status}</span>
+          )}
         </span>
       </div>
       {props.open && (
@@ -388,29 +438,23 @@ function LeadRow(props: { lead: Lead; tour: boolean; open: boolean; onToggle: ()
                   </dd>
                 </div>
               )}
-              {(props.admin || lead.review?.person) && (
-                <div>
-                  <dt>Your call</dt>
-                  <dd>
-                    {props.admin ? (
-                      <span className="row wrap call-row">
-                        {PERSON_CALLS.map((c) => (
-                          <button key={c} className={`sm ${lead.review?.person?.call === c ? 'primary' : ''}`} disabled={calling} aria-pressed={lead.review?.person?.call === c} onClick={() => void makeCall(c)}>
-                            {PERSON_CALL_LABEL[c]}
-                          </button>
-                        ))}
-                      </span>
-                    ) : (
-                      <ReviewTag review={lead.review} />
-                    )}
-                    <span className="sub">
-                      {lead.review?.person
-                        ? `Called ${new Date(lead.review.person.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}. The next runs remember it.`
-                        : 'Overrides the verifier. Good fit and Not a publisher are remembered for this site on every later run.'}
-                    </span>
-                  </dd>
-                </div>
-              )}
+              <div>
+                <dt>Your call</dt>
+                <dd>
+                  <span className="row wrap call-row">
+                    {PERSON_CALLS.map((c) => (
+                      <button key={c} className={`sm ${lead.review?.person?.call === c ? 'primary' : ''}`} disabled={calling} aria-pressed={lead.review?.person?.call === c} onClick={() => void makeCall(c)}>
+                        {PERSON_CALL_LABEL[c]}
+                      </button>
+                    ))}
+                  </span>
+                  <span className="sub">
+                    {lead.review?.person
+                      ? `Called ${new Date(lead.review.person.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}. The next runs remember it.`
+                      : 'Overrides the verifier. Good fit and Not a publisher are remembered for this site on every later run.'}
+                  </span>
+                </dd>
+              </div>
               {lead.owner && (
                 <div>
                   <dt>Owner</dt>
@@ -456,26 +500,16 @@ function LeadRow(props: { lead: Lead; tour: boolean; open: boolean; onToggle: ()
             </header>
             <label className="cf">
               <span>To</span>
-              {props.admin ? (
-                <input type="text" inputMode="email" autoComplete="off" spellCheck={false} value={draft.to} onChange={set('to')} placeholder={named ? `${lead.contactName}'s email address` : `Email address of the ${recipient}`} />
-              ) : (
-                <span className="cv muted">{recipient}</span>
-              )}
+              <input type="text" inputMode="email" autoComplete="off" spellCheck={false} value={draft.to} onChange={set('to')} placeholder={named ? `${lead.contactName}'s email address` : `Email address of the ${recipient}`} />
             </label>
             <label className="cf">
               <span>Subject</span>
-              {props.admin ? <input type="text" value={draft.subject} onChange={set('subject')} placeholder="Subject" /> : <span className="cv">{draft.subject}</span>}
+              <input type="text" value={draft.subject} onChange={set('subject')} placeholder="Subject" />
             </label>
-            {props.admin ? (
-              <textarea className="cbody" value={draft.body} onChange={set('body')} aria-label="Email body" />
-            ) : (
-              <pre className="cbody">{draft.body}</pre>
-            )}
+            <textarea className="cbody" value={draft.body} onChange={set('body')} aria-label="Email body" />
             <footer>
               <span className="muted small">
-                {!props.admin ? (
-                  'Owner can edit and send.'
-                ) : !isEmailAddress(draft.to) ? (
+                {!isEmailAddress(draft.to) ? (
                   <>
                     {!lead.address
                       ? 'The verification layer is still reading the site’s contact pages for an address. You can approve the draft now.'
@@ -495,12 +529,12 @@ function LeadRow(props: { lead: Lead; tour: boolean; open: boolean; onToggle: ()
                 <button className="sm" disabled={saving} onClick={() => void save({ status: lead.status === 'skipped' ? 'draft' : 'skipped' })}>
                   {lead.status === 'skipped' ? 'Restore' : 'Skip'}
                 </button>
-                {props.admin && dirty && (
+                {dirty && (
                   <button className="sm" disabled={saving} onClick={() => void save({ email: text })}>
                     Save draft
                   </button>
                 )}
-                {props.admin && !canSend ? (
+                {!canSend ? (
                   // No address yet: approving still records the call, so the flow learns from it.
                   <button className="primary sm" disabled={saving || lead.status === 'approved'} onClick={() => void save({ email: text, status: 'approved' })}>
                     <Icon name="check" />
@@ -514,6 +548,25 @@ function LeadRow(props: { lead: Lead; tour: boolean; open: boolean; onToggle: ()
                 )}
               </span>
             </footer>
+            <div className="outcome" aria-label="After the email">
+              <span className="eyebrow">After the email</span>
+              <span className="row wrap">
+                {OUTCOME_STAGES.map((st) => {
+                  const reached = lead.outcome && OUTCOME_STAGES.indexOf(lead.outcome.stage) >= OUTCOME_STAGES.indexOf(st);
+                  return (
+                    <button key={st} className={`sm ${reached ? 'primary' : ''}`} disabled={tracking} aria-pressed={!!reached} onClick={() => void track(lead.outcome?.stage === st ? null : st)}>
+                      {reached && <Icon name="check" />}
+                      {OUTCOME_LABEL[st]}
+                    </button>
+                  );
+                })}
+              </span>
+              <span className="muted small">
+                {lead.outcome
+                  ? `${OUTCOME_LABEL[lead.outcome.stage]} ${new Date(lead.outcome.at[lead.outcome.stage] ?? '').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}. Press it again to undo.`
+                  : 'Send marks it sent. Mark a reply or a booked call when it happens, so the funnel above stays true.'}
+              </span>
+            </div>
             {error && <div className="notice error">{error}</div>}
           </section>
         </div>

@@ -1,7 +1,7 @@
 /**
- * /api/engine. Reads are the public demo. Anyone may start a site check or a question
- * (within the daily limit); a whole-vertical run, role changes and edits to drafts need the
- * admin password when the deployment has one.
+ * /api/engine. Anyone may read, start a site check or a question (within the daily limit), and
+ * work the leads: edit, approve, skip, call and track replies. A whole-vertical run, role changes
+ * and the autopilot switch need the admin password when the deployment has one.
  *
  *   GET   /state                         boards, recent runs, roles, limits
  *   POST  /runs                          { kind, vertical, domain?, question? } → start a run
@@ -9,6 +9,7 @@
  *   GET   /runs/:id/report/:domain       a site's AI Answer Share report
  *   GET   /leads                         every run's leads, one per site
  *   PATCH /leads/:id                     { email?, status? } edit or approve a draft
+ *   PUT   /leads/:id/outcome             { stage: sent|replied|booked|null } what came of the email
  *   POST  /leads/:id/call                { call, note? } a person's call on a lead, remembered for later runs
  *   GET   /learning                      what the flow has learned from its checks and from people
  *   PUT   /roles                         { role, agentId|null } assign an agent to a role
@@ -16,9 +17,10 @@
  *   PUT   /autopilot                     { enabled } pause or resume it
  */
 
-import { joinEmail, splitEmail } from '../../shared/email';
 import { Hono } from 'hono';
 import {
+  OUTCOME_STAGES,
+  type OutcomeStage,
   PERSON_CALLS,
   ROLES,
   VERTICALS,
@@ -53,6 +55,7 @@ import {
   listEvents,
   listRuns,
   patchLead,
+  saveOutcome,
   readyEngines,
   rememberOrigin,
   roleMap,
@@ -72,8 +75,6 @@ const MAX_ACTIVE = 3;
 const publicLead = (l: Lead): Lead => ({
   ...l,
   contactName: l.verdict === 'verified' ? l.contactName : null,
-  // The address the owner typed stays owner-only.
-  email: l.email ? joinEmail({ ...splitEmail(l.email), to: '' }) : null,
   // The verifier's contact quote can name a person code did not confirm.
   review:
     l.review && l.verdict !== 'verified'
@@ -240,7 +241,6 @@ export function engineRoutes(adminOk: AdminCheck) {
   });
 
   app.patch('/leads/:id', async (c) => {
-    requireAdmin(c);
     const body = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
     const status = body?.status;
     if (status !== undefined && !['draft', 'approved', 'skipped'].includes(String(status))) {
@@ -253,8 +253,21 @@ export function engineRoutes(adminOk: AdminCheck) {
     return c.json({ ok: true });
   });
 
+  app.put('/leads/:id/outcome', async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { stage?: unknown } | null;
+    const stage = body?.stage ?? null;
+    if (stage !== null && !(OUTCOME_STAGES as readonly unknown[]).includes(stage)) {
+      throw new HttpError(400, 'bad_request', `stage must be one of ${OUTCOME_STAGES.join(', ')}, or null.`);
+    }
+    const lead = await getLead(c.env, c.req.param('id'));
+    if (!lead) throw new HttpError(404, 'not_found', 'No such lead.');
+    const outcome = await saveOutcome(c.env, lead.domain, stage as OutcomeStage | null, lead.outcome);
+    // Sending is the strongest yes: it counts as approved for the score's learning too.
+    if (outcome && lead.status !== 'approved') await patchLead(c.env, lead.id, { status: 'approved' });
+    return c.json({ outcome });
+  });
+
   app.post('/leads/:id/call', async (c) => {
-    requireAdmin(c);
     const body = (await c.req.json().catch(() => null)) as { call?: unknown; note?: unknown } | null;
     const call = String(body?.call ?? '') as PersonCall;
     if (!(PERSON_CALLS as readonly string[]).includes(call)) throw new HttpError(400, 'bad_request', `call must be one of ${PERSON_CALLS.join(', ')}.`);

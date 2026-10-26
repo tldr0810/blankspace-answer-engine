@@ -26,7 +26,7 @@ export default function PasswordGate(props: { onSubmitted: () => Promise<void>; 
       <form className="dialog" onSubmit={(event) => void submit(event)}>
         <h2>Owner sign in</h2>
         <p className="muted">
-          Settings, whole-vertical runs and draft edits are for the owner. Everything else
+          Settings and whole-vertical runs are for the owner. Everything else
           stays open to everyone.
         </p>
         <input
