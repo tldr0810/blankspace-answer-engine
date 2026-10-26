@@ -107,7 +107,7 @@ export function ensureSeed(env: Env, origin: string): Promise<void> {
               robots: facts.get(lead.domain)?.robots ?? {},
               contactRole: lead.contactRole,
               contactName: verified ? lead.contactName : null,
-              reportUrl: `${origin}/#report/${runId}/${lead.domain}`,
+              reportUrl: `${origin}/#report/${runId}/${lead.domain}/email`,
             }),
             status: 'draft',
           });

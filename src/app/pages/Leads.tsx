@@ -5,7 +5,7 @@
  */
 
 import { Fragment, useEffect, useRef, useState } from 'react';
-import { EDGE_CDNS, finalDecision, ORIGIN_LABEL, OUTCOME_LABEL, OUTCOME_STAGES, type LeadOutcome, type OutcomeStage, PAID_LOOKUP, PERSON_CALL_LABEL, PERSON_CALLS, REVIEW_CHECK_LABEL, scoreParts, VERTICAL_LABEL, type EngineState, type Lead, type LeadReview, type PersonCall, type RunOrigin, type Verdict } from '../../shared/engine';
+import { EDGE_CDNS, finalDecision, ORIGIN_LABEL, OUTCOME_LABEL, OUTCOME_STAGES, VARIANT_LABEL, type LeadOutcome, type OutcomeStage, PAID_LOOKUP, PERSON_CALL_LABEL, PERSON_CALLS, REVIEW_CHECK_LABEL, scoreParts, VERTICAL_LABEL, type EngineState, type Lead, type LeadReview, type PersonCall, type RunOrigin, type Verdict } from '../../shared/engine';
 import { api, ApiError } from '../api';
 import { markTour } from '../components/Tour';
 import { isEmailAddress, joinEmail, mailtoHref, splitEmail, type EmailParts } from '../../shared/email';
@@ -68,7 +68,14 @@ export default function Leads(props: { engine: EngineState; focus: string | null
   const tourLead = shown[0]?.id;
   // The funnel after the email: each stage counts every lead that reached it or went further.
   const reached = (st: OutcomeStage) => leads.filter((l) => l.outcome && OUTCOME_STAGES.indexOf(l.outcome.stage) >= OUTCOME_STAGES.indexOf(st)).length;
-  const funnel = { ranked: rank.size, approved: leads.filter((l) => l.status === 'approved').length, sent: reached('sent'), replied: reached('replied'), booked: reached('booked') };
+  const funnel = {
+    ranked: rank.size,
+    approved: leads.filter((l) => l.status === 'approved').length,
+    sent: reached('sent'),
+    opened: leads.filter((l) => l.outcome && (l.reportOpens > 0 || l.outcome.stage !== 'sent')).length,
+    replied: reached('replied'),
+    booked: reached('booked'),
+  };
   const rate = (n: number, of: number) => (of ? `${Math.round((n / of) * 100)}% of sent` : 'none sent yet');
   const update = (id: string, patch: Partial<Lead>) => setLeads((all) => all!.map((l) => (l.id === id ? { ...l, ...patch } : l)));
 
@@ -118,11 +125,12 @@ export default function Leads(props: { engine: EngineState; focus: string | null
           <li><b>{funnel.ranked}</b><span>Ranked</span></li>
           <li><b>{funnel.approved}</b><span>Approved</span></li>
           <li><b>{funnel.sent}</b><span>Sent</span></li>
+          <li><b>{funnel.opened}</b><span>Report opened</span><small>{rate(funnel.opened, funnel.sent)}</small></li>
           <li><b>{funnel.replied}</b><span>Replied</span><small>{rate(funnel.replied, funnel.sent)}</small></li>
           <li className="hot"><b>{funnel.booked}</b><span>Call booked</span><small>{rate(funnel.booked, funnel.sent)}</small></li>
         </ol>
         <p className="muted small">
-          Open a lead and mark what happened after the email. The reply and booking rates show which sites, contacts and emails work.{' '}
+          Open a lead and mark what happened after the email; report opens count on their own from the email’s link. <a href="#how">How it works</a> reads these against targets.{' '}
           <b>CRM:</b> each stage is meant to sync to the team’s CRM (HubSpot, Salesforce or Attio) through a connector, and agents can read and update deals over MCP. Not connected in this build.
         </p>
       </section>
@@ -496,7 +504,10 @@ function LeadRow(props: { lead: Lead; rank?: number; tour: boolean; open: boolea
           <section className="composer" id={`email-${lead.id}`} aria-label="Email draft">
             <header>
               <span className="eyebrow">Email</span>
-              <span className={`tag ${lead.status === 'approved' ? 't-you' : 't-mute'}`}>{lead.status === 'draft' ? (dirty ? 'unsaved edits' : 'draft') : lead.status}</span>
+              <span className="row">
+                <span className="tag t-mute" title="The first-email test arm, fixed by the site's name">Test {lead.variant} · {VARIANT_LABEL[lead.variant]}</span>
+                <span className={`tag ${lead.status === 'approved' ? 't-you' : 't-mute'}`}>{lead.status === 'draft' ? (dirty ? 'unsaved edits' : 'draft') : lead.status}</span>
+              </span>
             </header>
             <label className="cf">
               <span>To</span>
@@ -565,6 +576,7 @@ function LeadRow(props: { lead: Lead; rank?: number; tour: boolean; open: boolea
                 {lead.outcome
                   ? `${OUTCOME_LABEL[lead.outcome.stage]} ${new Date(lead.outcome.at[lead.outcome.stage] ?? '').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}. Press it again to undo.`
                   : 'Send marks it sent. Mark a reply or a booked call when it happens, so the funnel above stays true.'}
+                {lead.reportOpens > 0 && ` Report opened ${lead.reportOpens} ${lead.reportOpens === 1 ? 'time' : 'times'} from the email.`}
               </span>
             </div>
             {error && <div className="notice error">{error}</div>}

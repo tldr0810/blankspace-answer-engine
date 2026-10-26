@@ -1,3 +1,4 @@
+import Experiments from '../components/Experiments';
 import { useEffect, useRef, useState } from 'react';
 import type { Learning } from '../../shared/engine';
 import { api } from '../api';
@@ -45,6 +46,7 @@ export default function How() {
           </li>
         ))}
       </ol>
+      <Experiments />
       <LearningPanel />
       <section className="panel">
         <h2>Guardrails</h2>

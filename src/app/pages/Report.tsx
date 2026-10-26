@@ -14,7 +14,9 @@ export default function Report(props: { runId: string; domain: string }) {
   useEffect(() => {
     setReport(null);
     setOpen(null);
-    api<SiteReport>(`/api/engine/runs/${encodeURIComponent(props.runId)}/report/${encodeURIComponent(props.domain)}`)
+    // The email's link ends in /email, so the open counts toward the funnel.
+    const via = location.hash.endsWith('/email') ? '?via=email' : '';
+    api<SiteReport>(`/api/engine/runs/${encodeURIComponent(props.runId)}/report/${encodeURIComponent(props.domain)}${via}`)
       .then(setReport)
       .catch((err) => setError(err instanceof Error ? err.message : String(err)));
   }, [props.runId, props.domain]);

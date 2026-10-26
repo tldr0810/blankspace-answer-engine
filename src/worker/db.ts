@@ -216,6 +216,14 @@ CREATE TABLE IF NOT EXISTS lead_outcomes (
   updated_at TEXT NOT NULL
 );
 
+-- Each time a report is opened from an email's link: the earliest sign the hook worked.
+CREATE TABLE IF NOT EXISTS report_opens (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  domain    TEXT NOT NULL,
+  run_id    TEXT NOT NULL,
+  opened_at TEXT NOT NULL
+);
+
 -- What happened, in words, for the run's live feed.
 CREATE TABLE IF NOT EXISTS events (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,

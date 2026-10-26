@@ -298,7 +298,27 @@ export interface Lead {
   address: LeadAddress | null;
   /** What came of the first email. Null until someone marks it sent. Kept per site. */
   outcome: LeadOutcome | null;
+  /** Which first-email test arm the draft is, read from its subject line. */
+  variant: EmailVariant;
+  /** Times the report was opened from the email's link. */
+  reportOpens: number;
 }
+
+/**
+ * The first-email test: A opens with the site's own citation count, B with the audience its
+ * analytics cannot see. Each site gets one arm, fixed by its name, so the split stays even.
+ */
+export const EMAIL_VARIANTS = ['A', 'B'] as const;
+export type EmailVariant = (typeof EMAIL_VARIANTS)[number];
+export const VARIANT_LABEL: Record<EmailVariant, string> = { A: 'Their numbers first', B: 'Hidden audience first' };
+export const VARIANT_B_SUBJECT = 'your analytics can’t see them';
+export function variantFor(domain: string): EmailVariant {
+  let h = 0;
+  for (const ch of domain) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return h % 2 ? 'B' : 'A';
+}
+/** Read the arm back from a draft, so a person's edits to the body never move it. */
+export const variantOf = (email: string | null): EmailVariant => (email && email.split('\n')[0].includes(VARIANT_B_SUBJECT) ? 'B' : 'A');
 
 /** After the email: each stage a lead has reached, and when. A later stage implies the earlier ones. */
 export const OUTCOME_STAGES = ['sent', 'replied', 'booked'] as const;
@@ -467,3 +487,22 @@ export const AI_AGENTS: Record<string, string> = {
   PerplexityBot: 'search index',
   GPTBot: 'model training',
 };
+
+/** The kind of person a lead's first email goes to, read from the contact's role. */
+export const CONTACT_TYPES = ['partnerships', 'commercial', 'leadership', 'editorial', 'other'] as const;
+export type ContactType = (typeof CONTACT_TYPES)[number];
+export const CONTACT_TYPE_LABEL: Record<ContactType, string> = {
+  partnerships: 'Partnerships',
+  commercial: 'Commercial or ads',
+  leadership: 'Founder or leadership',
+  editorial: 'Editorial or audience',
+  other: 'Other',
+};
+export function contactType(role: string | null): ContactType {
+  const r = (role ?? '').toLowerCase();
+  if (/partnership|licens|business development/.test(r)) return 'partnerships';
+  if (/commercial|advertis|revenue|sales|monetis|monetiz/.test(r)) return 'commercial';
+  if (/founder|owner|ceo|managing director|president|publisher|general manager/.test(r)) return 'leadership';
+  if (/editor|seo|audience|content/.test(r)) return 'editorial';
+  return 'other';
+}

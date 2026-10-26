@@ -24,6 +24,7 @@ import {
   score,
   tally,
 } from '../src/worker/engine/logic';
+import { EMAIL_VARIANTS, variantFor, variantOf } from '../src/shared/engine';
 
 describe('acceptAnswers', () => {
   it('keeps only questions we asked and drops cited URLs the search never returned', () => {
@@ -136,11 +137,38 @@ describe('draftEmail', () => {
       contactRole: 'founder or CEO',
       contactName: 'Jens Jakob Andersen',
       reportUrl: 'https://example.workers.dev/#report/run_1/runrepeat.com',
+      variant: 'A',
     });
     expect(email).toMatch(/^Subject: runrepeat.com was cited in 13 of 30 AI answers on running/);
     expect(email).toContain('Hi Jens,');
     expect(email).toContain('blocks ChatGPT-User');
     expect(email.split(/\s+/).length).toBeLessThan(170);
+    expect(variantOf(email)).toBe('A');
+  });
+
+  it('variant B opens with the audience they cannot see and reads back as B', () => {
+    const input = {
+      domain: 'runrepeat.com',
+      vertical: 'running' as const,
+      answers: 13,
+      total: 30,
+      questions: 15,
+      engines: ['claude' as const],
+      rivals: [],
+      pages: [],
+      robots: {},
+      contactRole: null,
+      contactName: null,
+      reportUrl: 'https://example.workers.dev/#report/run_1/runrepeat.com/email',
+    };
+    const email = draftEmail({ ...input, variant: 'B' });
+    expect(email).toMatch(/^Subject: AI agents read runrepeat.com for running buyers/);
+    expect(email).toContain('None of that shows in your analytics.');
+    expect(email).toContain('13 of the 30 answers cited runrepeat.com');
+    expect(variantOf(email)).toBe('B');
+    // Without an arm, the site's name picks one, the same every time.
+    expect(variantOf(draftEmail(input))).toBe(variantFor('runrepeat.com'));
+    expect(EMAIL_VARIANTS.map((v) => ['a.com', 'b.co.uk', 'c.net', 'd.org', 'e.io', 'f.com'].filter((d) => variantFor(d) === v).length).every((n) => n > 0)).toBe(true);
   });
 });
 

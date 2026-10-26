@@ -15,6 +15,7 @@ import {
   type LeadOutcome,
   OUTCOME_STAGES,
   type OutcomeStage,
+  variantOf,
   type LeadReview,
   type SiteRule,
   type Role,
@@ -385,12 +386,13 @@ export async function bestLeads(env: Env): Promise<Lead[]> {
 }
 
 async function toLeads(env: Env, rows: LeadRow[]): Promise<Lead[]> {
-  const [facts, reviews, addresses, origins, outcomes] = await Promise.all([
+  const [facts, reviews, addresses, origins, outcomes, opens] = await Promise.all([
     siteFacts(env, rows.map((r) => r.domain)),
     leadReviews(env, rows.map((r) => r.id)),
     leadAddresses(env, rows.map((r) => r.id)),
     runOrigins(env, [...new Set(rows.map((r) => r.run_id))]),
     leadOutcomes(env, [...new Set(rows.map((r) => r.domain))]),
+    reportOpens(env, [...new Set(rows.map((r) => r.domain))]),
   ]);
   return rows.map((r) => ({
     id: r.id,
@@ -420,7 +422,33 @@ async function toLeads(env: Env, rows: LeadRow[]): Promise<Lead[]> {
     origin: origins.get(r.run_id) ?? 'schedule',
     address: addresses.get(r.id) ?? null,
     outcome: outcomes.get(r.domain) ?? null,
+    variant: variantOf(r.email),
+    reportOpens: opens.get(r.domain) ?? 0,
   }));
+}
+
+async function reportOpens(env: Env, domains: string[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  for (let i = 0; i < domains.length; i += 50) {
+    const chunk = domains.slice(i, i + 50);
+    if (!chunk.length) continue;
+    const { results } = await env.DB.prepare(`SELECT domain, COUNT(*) AS n FROM report_opens WHERE domain IN (${chunk.map(() => '?').join(', ')}) GROUP BY domain`)
+      .bind(...chunk)
+      .all<{ domain: string; n: number }>();
+    for (const row of results ?? []) out.set(row.domain, row.n);
+  }
+  return out;
+}
+
+/** A report opened from an email's link. Reloads within half an hour count as the same open. */
+export async function logReportOpen(env: Env, runId: string, domain: string): Promise<void> {
+  const since = new Date(Date.now() - 30 * 60_000).toISOString();
+  await env.DB.prepare(
+    `INSERT INTO report_opens (domain, run_id, opened_at)
+     SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM report_opens WHERE domain = ? AND opened_at > ?)`,
+  )
+    .bind(domain, runId, now(), domain, since)
+    .run();
 }
 
 async function leadOutcomes(env: Env, domains: string[]): Promise<Map<string, LeadOutcome>> {
@@ -591,7 +619,7 @@ export async function saveReview(env: Env, leadId: string, review: LeadReview): 
     .run();
 }
 
-export async function insertLead(env: Env, lead: Omit<Lead, 'facts' | 'review' | 'origin' | 'address' | 'outcome'>): Promise<void> {
+export async function insertLead(env: Env, lead: Omit<Lead, 'facts' | 'review' | 'origin' | 'address' | 'outcome' | 'variant' | 'reportOpens'>): Promise<void> {
   await env.DB.prepare(
     `INSERT OR REPLACE INTO leads (id, run_id, vertical, domain, score, answers, total, citations, pages, queries, owner, company_type,
        monetisation, ai_deal, contact_role, contact_name, contact_source_url, why, verdict, verify_note, email, status, updated_at)

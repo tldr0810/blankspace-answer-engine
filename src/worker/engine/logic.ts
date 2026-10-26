@@ -6,7 +6,7 @@
  * contacts. Code decides what a citation is, who ranks where, and whether a name stands.
  */
 
-import { AI_AGENTS, DROPPED_VERDICTS, ENGINE_LABEL, VERTICAL_LABEL, type BoardRow, type CheckMiss, type Engine, type PageVerdict, type SiteFacts, type Vertical, scoreParts, REVIEW_CHECKS, type LeadReview, type ReviewCheck, type ReviewCheckKey, type ReviewDecision, type SiteRule, EDGE_CDNS, finalDecision, type Lead, type Learning, type SignalStat } from '../../shared/engine';
+import { AI_AGENTS, DROPPED_VERDICTS, ENGINE_LABEL, VERTICAL_LABEL, type BoardRow, type CheckMiss, type Engine, type PageVerdict, type SiteFacts, type Vertical, scoreParts, REVIEW_CHECKS, type LeadReview, type ReviewCheck, type ReviewCheckKey, type ReviewDecision, type SiteRule, EDGE_CDNS, finalDecision, type Lead, type EmailVariant, VARIANT_B_SUBJECT, variantFor, type Learning, type SignalStat } from '../../shared/engine';
 
 /** Cited often, but not ad- or affiliate-funded publishers. */
 export const NOT_PUBLISHERS = [
@@ -501,6 +501,8 @@ export interface DraftInput {
   contactRole: string | null;
   contactName: string | null;
   reportUrl: string;
+  /** Which first-email test arm; by default the one the site's name picks. */
+  variant?: EmailVariant;
 }
 
 /**
@@ -513,11 +515,16 @@ export function draftEmail(input: DraftInput): string {
   const greeting = input.contactName ? `Hi ${input.contactName.split(/\s+/)[0]},` : 'Hi,';
   const blocked = ['ChatGPT-User', 'Perplexity-User', 'Claude-User'].filter((a) => input.robots[a] === false);
   const rivals = input.rivals.slice(0, 3).map((r) => `${r.domain} (${r.answers})`).join(', ');
+  const b = (input.variant ?? variantFor(input.domain)) === 'B';
   const lines = [
-    `Subject: ${input.domain} was cited in ${input.answers} of ${input.total} AI answers on ${label}`,
+    b
+      ? `Subject: AI agents read ${input.domain} for ${label} buyers, and ${VARIANT_B_SUBJECT}`
+      : `Subject: ${input.domain} was cited in ${input.answers} of ${input.total} AI answers on ${label}`,
     '',
     greeting,
     '',
+    // B leads with the audience they cannot see; A goes straight to their numbers.
+    ...(b ? [`AI assistants now answer UK shoppers’ ${label} questions, and they read your pages to do it. None of that shows in your analytics.`, ''] : []),
     `We asked ${engines} ${input.questions} buying questions UK shoppers ask about ${label}. ${input.answers} of the ${input.total} answers cited ${input.domain}.`,
     rivals ? `The sites cited most in the same answers: ${rivals}.` : '',
     input.pages[0] ? `One page they leaned on: ${input.pages[0]}` : '',
