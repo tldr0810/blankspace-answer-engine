@@ -19,7 +19,7 @@ export default function Leads(props: { engine: EngineState; admin: boolean; need
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'verified' | 'approved'>('all');
-  // On phones the tag key folds away so the list starts on the first screen.
+  // The tag key starts folded so the list starts on the first screen.
   const [keyOpen, setKeyOpen] = useState(false);
   const [source, setSource] = useState<RunOrigin | 'any'>('any');
   // A link to #leads/<site> opens that site's lead at its email, once the list is in.
@@ -136,18 +136,18 @@ export default function Leads(props: { engine: EngineState; admin: boolean; need
             </ul>
           </div>
           <div>
-            <span className="eyebrow">You</span>
+            <span className="eyebrow">Person</span>
             <ul className="key-list">
               <li>
                 <span className="tag t-you">approved</span>
-                <span>You approved the email, with or without sending it yet.</span>
+                <span>A person approved the email, with or without sending it yet.</span>
               </li>
               <li>
                 <span className="tag t-mute">skipped</span>
                 <span>Set aside. Restore brings it back.</span>
               </li>
               <li>
-                <span className="tag t-you">Good fit · you</span>
+                <span className="tag t-you">Good fit · person</span>
                 <span>Your call on a lead. It overrides the verifier and is remembered for the next runs.</span>
               </li>
             </ul>
@@ -241,7 +241,7 @@ function LeadProgress({ lead, recipient }: { lead: Lead; recipient: string }) {
       <li className={lead.status === 'draft' ? 'now' : 'done'}>
         <span className="eyebrow">4 · You</span>
         <span>
-          <span className="tag t-you">You</span> {yours}
+          <span className="tag t-you">Person</span> {yours}
         </span>
       </li>
     </ol>

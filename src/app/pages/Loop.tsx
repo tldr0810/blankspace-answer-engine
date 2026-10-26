@@ -51,7 +51,7 @@ const STEPS: Record<Key, StepDef> = {
   },
   count: {
     name: 'Leaderboard',
-    tags: [{ cls: 't-eng', text: 'Engine check' }],
+    tags: [{ cls: 't-eng', text: 'Verification layer' }],
     icon: <path d="M3.5 20h17M6.5 16.5v-5M12 16.5V5.5M17.5 16.5v-8" />,
     what: 'Automated checks open every cited page, drops dead or off-topic ones, and counts how many answers cite each site. Marketplaces, forums and brands drop out, leaving the publishers AI already depends on.',
     check: 'Dead and off-topic pages dropped',
@@ -67,7 +67,7 @@ const STEPS: Record<Key, StepDef> = {
     name: 'Verified contact',
     tags: [
       { cls: 't-ai', text: 'AI agent' },
-      { cls: 't-eng', text: 'Engine check' },
+      { cls: 't-eng', text: 'Verification layer' },
     ],
     icon: <path d="M12 12a3.8 3.8 0 1 0 0-7.6 3.8 3.8 0 0 0 0 7.6zM4.5 20c.8-3.6 3.8-5.6 7.5-5.6s6.7 2 7.5 5.6" />,
     what: 'A profiler agent works out who owns the site and who to talk to first. The verification layer opens the page it cited and keeps the name only if it is really there, otherwise the lead falls back to the role. It also reads the site’s contact pages for a published address, and never guesses one.',
@@ -75,14 +75,14 @@ const STEPS: Record<Key, StepDef> = {
   },
   email: {
     name: 'First email',
-    tags: [{ cls: 't-you', text: 'You' }],
+    tags: [{ cls: 't-you', text: 'Person' }],
     icon: <path d="M3.5 6h17v12h-17zM4 6.5l8 6.5 8-6.5" />,
     what: 'A first email built only from counted facts: their citations, the sites cited next to them, and their robots.txt. The ask is to open the free report. A person edits, approves or skips it.',
     check: 'Nothing is sent without a person',
   },
   call: {
     name: 'Booked call',
-    tags: [{ cls: 't-you', text: 'You' }],
+    tags: [{ cls: 't-you', text: 'Person' }],
     icon: <path d="M4.5 6h15v14h-15zM4.5 10h15M8.5 3.5v4M15.5 3.5v4M9 15l2 2 4-4" />,
     what: 'The publisher opens their report, sees how much AI answers already lean on them, and books a call with the Blankspace team. This is where the machine hands over to people.',
     check: 'Then the next vertical refreshes',
@@ -272,7 +272,7 @@ export default function Loop(props: { engine: EngineState }) {
       <div className="hub-way">
         <span className="row">
           <b className="disp">Any time</b>
-          <span className="tag t-you">You</span>
+          <span className="tag t-you">Person</span>
         </span>
         <p>
           Type a publisher’s site on the Check page and press Run. <a href="#check">Run a check</a>
@@ -345,10 +345,10 @@ export default function Loop(props: { engine: EngineState }) {
             the Blankspace team a checked contact and a first email. Then it does it again.
           </p>
           <div className="legend" aria-label="What the tags mean">
-            <span className="item"><span className="tag t-ai">AI agent</span> runs in the cloud</span>
-            <span className="item"><span className="tag t-eng">Engine check</span> the verification layer has the final say</span>
+            <span className="item"><span className="tag t-ai">AI agents</span> runs in the cloud</span>
+            <span className="item"><span className="tag t-eng">Verification layer</span> automated checks have the final say</span>
             <span className="item"><span className="tag t-new">The hook</span> what the publisher gets</span>
-            <span className="item"><span className="tag t-you">You</span> a person decides</span>
+            <span className="item"><span className="tag t-you">Person</span> a person decides</span>
           </div>
         </div>
         <div className="loop-stats">
@@ -357,6 +357,27 @@ export default function Loop(props: { engine: EngineState }) {
           <div className="stat hot"><b>{leads ? stats.verified : '–'}</b><span>verified contacts</span></div>
         </div>
       </div>
+
+      <section className="try" aria-label="Things to try">
+        <span className="eyebrow">New here? Four things to try</span>
+        <ol className="try-grid">
+          {[
+            { n: 1, href: '#board', title: 'See who AI cites', text: 'Pick a category, then open any site to see the exact pages Claude and Gemini cited.' },
+            { n: 2, href: examples?.report.link?.href ?? '#board', title: 'Open a publisher’s report', text: 'The free report a publisher would receive, with every number traced to a cited page.' },
+            { n: 3, href: '#leads', title: 'Read a lead', text: 'Open any row for the contact, the evidence behind it and the first email draft.' },
+            { n: 4, href: '#check', title: 'Run your own check', text: 'Type any UK publisher’s site and watch the agents work. Takes 5 to 10 minutes.' },
+          ].map((t) => (
+            <li key={t.n}>
+              <a className="try-card" href={t.href}>
+                <span className="try-n">{t.n}</span>
+                <b>{t.title}</b>
+                <span>{t.text}</span>
+              </a>
+            </li>
+          ))}
+        </ol>
+        <p className="muted small">Anyone can browse and run a check. Approving emails and changing settings are for the owner.</p>
+      </section>
 
       <div className="loop">
         <div className="loop-stage" ref={wrapRef} data-tour="loop">
