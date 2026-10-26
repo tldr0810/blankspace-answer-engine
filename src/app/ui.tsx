@@ -88,7 +88,7 @@ export function ReviewTag({ review }: { review: Pick<LeadReview, 'decision' | 'p
   if (!review) return null;
   if (review.person) {
     const fit = review.person.call === 'fit';
-    return <span className={`tag ${fit ? 't-you' : 't-ret'}`}>{PERSON_CALL_LABEL[review.person.call]} · you</span>;
+    return <span className={`tag ${fit ? 't-you' : 't-ret'}`}>{PERSON_CALL_LABEL[review.person.call]} · person</span>;
   }
   switch (review.decision) {
     case 'pass':

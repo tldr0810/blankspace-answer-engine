@@ -389,6 +389,15 @@ input[type='text'], input[type='password'] { flex: 1; min-width: 0; font: inheri
 .stat.hot { background: var(--you-bg); }
 .stat b { display: block; font-family: var(--display); font-size: 26px; font-weight: 800; line-height: 30px; font-variant-numeric: tabular-nums; }
 .stat span { font-size: 12px; color: var(--ink3); font-weight: 600; }
+/* The loop: four things a first visitor can do, right under the headline. */
+.try { display: flex; flex-direction: column; gap: 10px; }
+.try-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.try-card { display: flex; flex-direction: column; gap: 4px; height: 100%; padding: 14px 16px; background: var(--card); border: 1.5px solid var(--ink); border-radius: 14px; box-shadow: var(--shadow-sm); color: var(--ink2); font-size: 13.5px; line-height: 20px; text-decoration: none; transition: translate 0.15s, box-shadow 0.15s; }
+.try-card b { color: var(--ink); font-size: 15px; }
+.try-card:hover { translate: -1px -1px; box-shadow: var(--shadow); }
+.try-n { display: inline-grid; place-items: center; width: 24px; height: 24px; margin-bottom: 4px; border-radius: 50%; background: var(--ink); color: var(--card); font-size: 12px; font-weight: 800; }
+@media (max-width: 1100px) { .try-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .try-grid { grid-template-columns: 1fr; } }
 .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink2); margin: 14px 0 0; }
 .legend span.item { display: inline-flex; gap: 6px; align-items: center; }
 .stage-wrap { position: relative; }
@@ -1076,13 +1085,10 @@ button:active:not(:disabled):not(.primary), .button:active:not(.primary) { trans
   .role { grid-template-columns: minmax(0, 1fr); }
   .role > .tag { justify-self: start; }
 }
-.lk-toggle { display: none; }
-@media (max-width: 640px) {
-  .lk-toggle { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; }
-  .lk-toggle .chev { transition: rotate 0.2s; }
-  .lk-toggle .chev.open { rotate: 90deg; }
-  .lk-groups.lk-closed { display: none; }
-}
+.lk-toggle { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; }
+.lk-toggle .chev { transition: rotate 0.2s; }
+.lk-toggle .chev.open { rotate: 90deg; }
+.lk-groups.lk-closed { display: none; }
 @media (max-width: 860px) {
   /* Thumb-sized tap targets on touch screens. */
   .tabs button { min-height: 38px; }

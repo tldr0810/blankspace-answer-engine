@@ -21,7 +21,7 @@ const LIVE: Spot = { id: 'live', hash: 'check', target: '[data-tour="live"]', ti
 
 const AI: Who = { cls: 't-ai', text: 'AI agents' };
 const CHECK: Who = { cls: 't-eng', text: 'Verification layer' };
-const YOU: Who = { cls: 't-you', text: 'You' };
+const YOU: Who = { cls: 't-you', text: 'Person' };
 
 const STEPS: (Spot & { id: TourStep; title: string; text: string; who: Who[] })[] = [
   {
@@ -77,7 +77,8 @@ function load(): Saved {
   } catch {
     /* storage can be blocked; the tour still works for this visit */
   }
-  return { done: [], open: true };
+  // On phones the card would cover the first screen, so it starts as the pill there.
+  return { done: [], open: window.matchMedia('(min-width: 861px)').matches };
 }
 
 function save(s: Saved) {
