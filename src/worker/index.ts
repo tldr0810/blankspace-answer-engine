@@ -169,10 +169,10 @@ app.all('*', (c) => c.env.ASSETS.fetch(c.req.raw));
 export default {
   fetch: app.fetch,
   // Safety net: if a run is mid-flight and its alarm was lost, wake its ticker.
-  async scheduled(_controller: ScheduledController, env: Env) {
+  async scheduled(controller: ScheduledController, env: Env) {
     await ensureSchema(env.DB);
     await rearmRuns(env);
-    await sweepSources(env);
+    await sweepSources(env, new Date(controller.scheduledTime));
     await sweepAddresses(env);
   },
 } satisfies ExportedHandler<Env>;
