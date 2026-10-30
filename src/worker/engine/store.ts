@@ -292,13 +292,83 @@ export async function pageVerdicts(env: Env, urls: string[]): Promise<Map<string
   return out;
 }
 
-export async function savePageCheck(env: Env, check: { url: string; status: number | null; verdict: PageVerdict; note: string }): Promise<void> {
-  await env.DB.prepare(
-    `INSERT INTO page_checks (url, domain, status, verdict, note, checked_at) VALUES (?, ?, ?, ?, ?, ?)
-     ON CONFLICT (url) DO UPDATE SET status = excluded.status, verdict = excluded.verdict, note = excluded.note, checked_at = excluded.checked_at`,
+export async function savePageCheck(env: Env, check: { url: string; status: number | null; verdict: PageVerdict; note: string; queries?: string[] }): Promise<void> {
+  await pageTotalsReady(env);
+  const before = await env.DB.prepare('SELECT verdict FROM page_checks WHERE url = ?').bind(check.url).first<{ verdict: PageVerdict }>();
+  const statements = [
+    env.DB.prepare(
+      `INSERT INTO page_checks (url, domain, status, verdict, note, checked_at) VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT (url) DO UPDATE SET status = excluded.status, verdict = excluded.verdict, note = excluded.note, checked_at = excluded.checked_at`,
+    ).bind(check.url, domainOf(check.url), check.status, check.verdict, check.note, now()),
+  ];
+  if (check.queries?.length) {
+    statements.push(
+      env.DB.prepare('INSERT INTO page_check_queries (url, queries) VALUES (?, ?) ON CONFLICT (url) DO UPDATE SET queries = excluded.queries')
+        .bind(check.url, JSON.stringify(check.queries)),
+    );
+  }
+  if (before?.verdict !== check.verdict) {
+    statements.push(
+      env.DB.prepare('INSERT INTO page_check_totals (verdict, n) VALUES (?, 1) ON CONFLICT (verdict) DO UPDATE SET n = n + 1').bind(check.verdict),
+    );
+    if (before) statements.push(env.DB.prepare('UPDATE page_check_totals SET n = MAX(0, n - 1) WHERE verdict = ?').bind(before.verdict));
+  }
+  await env.DB.batch(statements);
+}
+
+/**
+ * Fills page_check_totals from page_checks once (one full count), then never again: from
+ * then on savePageCheck keeps it current. Marked in settings so it survives new isolates.
+ */
+let totalsReady: Promise<void> | null = null;
+function pageTotalsReady(env: Env): Promise<void> {
+  totalsReady ??= (async () => {
+    if (await getSetting(env, 'page_check_totals_v1')) return;
+    await env.DB.batch([
+      env.DB.prepare('DELETE FROM page_check_totals'),
+      env.DB.prepare('INSERT INTO page_check_totals (verdict, n) SELECT verdict, COUNT(*) FROM page_checks GROUP BY verdict'),
+    ]);
+    await setSetting(env, 'page_check_totals_v1', now());
+  })().catch((error) => {
+    totalsReady = null;
+    throw error;
+  });
+  return totalsReady;
+}
+
+/**
+ * Fills page_check_queries for pages checked before it existed (one pass over the answers),
+ * so the hourly re-check never has to expand every answer's citations again.
+ */
+let queriesReady: Promise<void> | null = null;
+function pageQueriesReady(env: Env): Promise<void> {
+  queriesReady ??= (async () => {
+    if (await getSetting(env, 'page_check_queries_v1')) return;
+    await env.DB.prepare(
+      `INSERT OR IGNORE INTO page_check_queries (url, queries)
+       SELECT j.value, json_group_array(DISTINCT a.query)
+         FROM answers a, json_each(a.cited) j
+         JOIN page_checks p ON p.url = j.value
+        GROUP BY j.value`,
+    ).run();
+    await setSetting(env, 'page_check_queries_v1', now());
+  })().catch((error) => {
+    queriesReady = null;
+    throw error;
+  });
+  return queriesReady;
+}
+
+/** Checked pages last opened before `staleBefore`, oldest first, read through the checked_at index. */
+export async function stalePages(env: Env, options: { staleBefore: string; limit: number }): Promise<{ url: string; queries: string[] }[]> {
+  await pageQueriesReady(env);
+  const { results } = await env.DB.prepare(
+    `SELECT p.url, q.queries FROM page_checks p LEFT JOIN page_check_queries q ON q.url = p.url
+      WHERE p.checked_at < ? ORDER BY p.checked_at LIMIT ?`,
   )
-    .bind(check.url, domainOf(check.url), check.status, check.verdict, check.note, now())
-    .run();
+    .bind(options.staleBefore, options.limit)
+    .all<{ url: string; queries: string | null }>();
+  return (results ?? []).map((row) => ({ url: row.url, queries: row.queries ? (JSON.parse(row.queries) as string[]) : [] }));
 }
 
 /**
@@ -326,7 +396,8 @@ export async function pagesToCheck(env: Env, options: { runId?: string; staleBef
 }
 
 export async function sourceTotals(env: Env): Promise<{ ok: number; dropped: number; blocked: number }> {
-  const { results } = await env.DB.prepare('SELECT verdict, COUNT(*) AS n FROM page_checks GROUP BY verdict').all<{ verdict: PageVerdict; n: number }>();
+  await pageTotalsReady(env);
+  const { results } = await env.DB.prepare('SELECT verdict, n FROM page_check_totals').all<{ verdict: PageVerdict; n: number }>();
   const count = (v: PageVerdict) => results?.find((r) => r.verdict === v)?.n ?? 0;
   return { ok: count('ok'), dropped: count('dead') + count('off_topic'), blocked: count('blocked') };
 }

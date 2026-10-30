@@ -243,6 +243,20 @@ CREATE TABLE IF NOT EXISTS page_checks (
   checked_at TEXT NOT NULL
 );
 
+-- The questions each checked page was cited for, so the hourly re-check can find what is due
+-- through the checked_at index instead of expanding every answer's citations.
+CREATE TABLE IF NOT EXISTS page_check_queries (
+  url     TEXT PRIMARY KEY,
+  queries TEXT NOT NULL
+);
+
+-- How many checked pages carry each verdict, kept up to date on every save so the totals
+-- never need a count over the whole page_checks table.
+CREATE TABLE IF NOT EXISTS page_check_totals (
+  verdict TEXT PRIMARY KEY,
+  n       INTEGER NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_answers_run ON answers (run_id);
 CREATE INDEX IF NOT EXISTS idx_leads_run ON leads (run_id);
 CREATE INDEX IF NOT EXISTS idx_events_run ON events (run_id, id);
