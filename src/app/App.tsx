@@ -113,7 +113,10 @@ export default function App() {
     };
     window.addEventListener('hashchange', onHash);
     onUnauthorized(() => setGateOpen(true));
-    const timer = setInterval(() => void refresh(), 20_000);
+    // Only poll while the tab is in view: a background tab need not keep reading the database.
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible') void refresh();
+    }, 20_000);
     return () => {
       window.removeEventListener('hashchange', onHash);
       onUnauthorized(null);

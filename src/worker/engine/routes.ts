@@ -105,6 +105,20 @@ export function engineRoutes(adminOk: AdminCheck) {
   const dailyLimit = (env: Env) => Math.max(0, Number(env.DAILY_RUN_LIMIT ?? '12') || 12);
   const dayStart = () => new Date(Date.now() - 24 * 3600_000).toISOString();
 
+  // Every open tab polls /state, and the boards and source totals each read thousands of rows
+  // that barely change between polls. Hold them per isolate for a short while so polling stays
+  // within D1's daily read budget; runs, limits and the autopilot are always read fresh.
+  const STATE_CACHE_MS = 2 * 60_000;
+  const cached = new Map<string, { at: number; value: Promise<unknown> }>();
+  const memo = <T>(key: string, load: () => Promise<T>): Promise<T> => {
+    const hit = cached.get(key);
+    if (hit && Date.now() - hit.at < STATE_CACHE_MS) return hit.value as Promise<T>;
+    const value = load();
+    cached.set(key, { at: Date.now(), value });
+    value.catch(() => cached.delete(key));
+    return value;
+  };
+
   app.get('/state', async (c) => {
     const [roles, engines, runs, latest, active, today, autopilot, sources] = await Promise.all([
       roleMap(c.env),
@@ -114,13 +128,13 @@ export function engineRoutes(adminOk: AdminCheck) {
       activeRuns(c.env),
       runsSince(c.env, dayStart()),
       loadAutopilot(c.env),
-      sourceTotals(c.env),
+      memo('sources', () => sourceTotals(c.env)),
     ]);
     const boards: VerticalBoard[] = [];
     for (const vertical of VERTICALS) {
       const run = latest.find((r) => r.vertical === vertical);
       if (!run) continue;
-      const { rows, total, questions, engineAnswers, engines, silent } = await boardFor(c.env, run.id);
+      const { rows, total, questions, engineAnswers, engines, silent } = await memo(`board:${run.id}`, () => boardFor(c.env, run.id));
       boards.push({
         vertical,
         runId: run.id,
